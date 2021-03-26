@@ -129,10 +129,12 @@ namespace cmcc {
 			if (c == '\n') {
 				++line;
 				pos = 0;
-				return _s;
+				return _s = state::incom;
 			}
 			else if (c == '/')
 				return _s = state::ready;
+			else if (c == '*')
+				return _s;
 			else
 				return _s = state::incom;
 		}
