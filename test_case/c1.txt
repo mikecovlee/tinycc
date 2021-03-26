@@ -1,6 +1,6 @@
 CMINUS COMPILATION:
 	1: /* A program to perform selection sort on a 10
-	2:  	element array. */
+	2:  	element array. **/
 	3: int x[10];
 		3: reserved word: int
 		3: ID, name = x
