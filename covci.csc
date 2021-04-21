@@ -184,119 +184,154 @@ var tiny_syntax = {
 @end
 
 struct parse_stage
-    var lex_cursor = 0
+    var cursor = 0
     var product = new array
     var error = new array
 end
 
+struct syntax_tree
+    var root = new string
+    var nodes = new array
+end
+
 struct parser
-    var parse_stack = new array
+    var stack = new array
+    var log_indent = 0
     var log = false
     var syn = null
     var lex = null
+    # Parsing Stage
     function push_stage()
-        var cursor = 0
-        if !parse_stack.empty()
-            cursor = parse_stack.front.lex_cursor
+        var prev_cursor = 0
+        if !stack.empty()
+            prev_cursor = stack.front.cursor
         end
-        parse_stack.push_front(new parse_stage)
-        parse_stack.front.lex_cursor = cursor
+        stack.push_front(new parse_stage)
+        stack.front.cursor = prev_cursor
     end
     function pop_stage()
-        return parse_stack.pop_front()
+        return stack.pop_front()
     end
+    # Parsing Product
     function push(val)
-        parse_stack.front.product.push_back(val)
+        stack.front.product.push_back(val)
     end
     function pop()
-        return parse_stack.front.product.pop_front()
+        return stack.front.product.pop_front()
     end
     function top()
-        return parse_stack.front.product
+        return stack.front.product
     end
-    function lex_cursor()
-        return parse_stack.front.lex_cursor
+    # Token Streams
+    function cursor()
+        return stack.front.cursor
     end
     function eof()
-        return lex_cursor() >= lex.size
+        return cursor() >= lex.size
     end
     function peek()
         if eof()
             throw runtime.exception("EOF")
         end
-        return lex[lex_cursor()]
+        return lex[cursor()]
     end
     function get()
         if eof()
             throw runtime.exception("EOF")
         end
-        return lex[lex_cursor()++]
+        return lex[cursor()++]
     end
-    function accept()
-        var cursor = lex_cursor()
-        var dat = pop_stage().product
-        push(dat)
-        lex_cursor() = cursor
-    end
+    # Error & Logs
     function error(str, pos)
-        parse_stack.front.error.push_back(str : pos)
+        stack.front.error.push_back(str : pos)
     end
+    # SS: Stack Size
+    # CP: Cursor Position
     function parse_log(txt)
         if log
             @begin
-            system.out.println(
-                "ss = " + parse_stack.size + "\t" +
-                "lc = " + lex_cursor() + "\t" +
-            txt)
+            system.out.print(
+                "SS = " + stack.size + "\t" +
+                "CP = " + cursor() + "\t"
+            )
             @end
+            foreach i in range(log_indent) do system.out.print("  ")
+            system.out.println(txt)
         end
     end
+    # Parsing Methods
+    function accept()
+        var new_cursor = cursor()
+        var dat = pop_stage().product
+        push(dat)
+        cursor() = new_cursor
+    end
+    # Return Values
+    # 1: Success
+    # 0: Failed
+    #-1: End of Input
     function match_syntax(seq)
         foreach it in seq
-            if !this.match(it)
-                return false
+            var result = this.match(it)
+            if result != 1
+                return result
             end
         end
-        return true
+        return 1
     end
+    # Match:  Terminal Symbols
+    # Deduct: Unstarred Nonterminals
+    # Accept: Matching Successfully
+    # Reject: Matching Failed, Rollback
     function match(it)
         switch it.type
             case syntax_type.token
-                parse_log("Reading " + it.data)
+                parse_log("Match  " + it.data)
+                if eof()
+                    return -1
+                end
                 if peek().type == it.data
-                    push(get())
                     parse_log("Accept " + it.data)
+                    push(get())
                 else
+                    parse_log("Reject " + it.data)
                     error("Unexpected Lexical Token, expected " + it.data, peek().pos)
-                    return false
+                    return 0
                 end
             end
             case syntax_type.term
-                parse_log("Reading " + it.data)
+                parse_log("Match  " + it.data)
+                if eof()
+                    return -1
+                end
                 if peek().data == it.data
-                    push(get())
                     parse_log("Accept " + it.data)
+                    push(get())
                 else
-                    parse_log("Reject " + peek().data)
+                    parse_log("Reject " + it.data)
                     error("Unexpected Terminal Symbol, expected " + it.data, peek().pos)
-                    return false
+                    return 0
                 end
             end
             case syntax_type.ref
-                parse_log("Entailing " + it.data)
+                parse_log("Deduct " + it.data)
+                ++log_indent
                 push_stage()
-                if match_syntax(syn[it.data])
+                if match_syntax(syn[it.data]) == 1
+                    --log_indent
                     parse_log("Accept " + it.data)
                     accept()
                 else
+                    --log_indent
+                    parse_log("Reject " + it.data)
+                    error("Deduction Failed: " + it.data, peek().pos)
                     pop_stage()
-                    error("Rules Deduction Failed: " + it.data, peek().pos)
-                    return false
+                    return 0
                 end
             end
             case syntax_type.repeat
                 loop
-                    if !match_syntax(it.data)
+                    if match_syntax(it.data) != 1
                         break
                     end
                 end
@@ -305,30 +340,26 @@ struct parser
                 match_syntax(it.data)
             end
             case syntax_type.cond
-                parse_log("Begin OR")
                 var matched = false
                 foreach seq in it.data
-                    if match_syntax(seq)
+                    if match_syntax(seq) == 1
                         matched = true
                         break
-                    else
-                        parse_log("Deduction Failed")
                     end
                 end
-                parse_log("End OR")
                 if !matched
                     error("No matching syntax", peek().pos)
-                    return false
+                    return 0
                 end
             end
         end
-        return true
+        return 1
     end
     function run(grammar, lex_output)
         syn = grammar
         lex = lex_output
         push_stage()
-        return match_syntax(syn["begin"])
+        return match_syntax(syn.begin) != 0
     end
 end
 
@@ -353,7 +384,7 @@ print_header("Begin Lexical Analysis...")
 var lex = (new lexer).run(tiny_lexical, data)
 
 print_header("Lexical Analysis Results")
-foreach it in lex do system.out.println("Type: " + it.type + ", Data: " + it.data + ", Pos: (" + it.pos[0] + ", " + it.pos[1] + ")")
+foreach it in lex do system.out.println("Type = " + it.type + "\tData = " + it.data + "\tPos = (" + it.pos[0] + ", " + it.pos[1] + ")")
 
 function dfs(indent, t)
     if t == null
@@ -374,26 +405,18 @@ end
 var p = new parser
 p.log = true
 
-var result = null
-
 print_header("Begin Parsing...")
-try
-    result = p.run(tiny_syntax, lex)
-catch e
-    if e.what == "EOF"
-        result = true
-    end
-end
+var result = p.run(tiny_syntax, lex)
 
 print_header("Parsing Results")
 
 if result
     var indent = 0
-    foreach ss in p.parse_stack
+    foreach ss in p.stack
         foreach it in ss.product do dfs(indent, it)
     end
 else
-    foreach it in p.parse_stack.front.error
+    foreach it in p.stack.front.error
         system.out.println(it.first)
         system.out.println("\t" + code[it.second[1]])
         system.out.print("\t")
