@@ -261,6 +261,12 @@ struct parser
         push(dat)
         cursor() = new_cursor
     end
+    function merge()
+        var new_cursor = cursor()
+        var dat = pop_stage().product
+        foreach it in dat.nodes do push(it)
+        cursor() = new_cursor
+    end
     # Return Values
     # 1: Success
     # 0: Failed
@@ -279,12 +285,12 @@ struct parser
     # Accept: Matching Successfully
     # Reject: Matching Failed, Rollback
     function match(it)
+        if eof()
+            return -1
+        end
         switch it.type
             case syntax_type.token
                 parse_log("Match  " + it.data)
-                if eof()
-                    return -1
-                end
                 if peek().type == it.data
                     parse_log("Accept " + it.data)
                     push(get())
@@ -296,9 +302,6 @@ struct parser
             end
             case syntax_type.term
                 parse_log("Match  " + it.data)
-                if eof()
-                    return -1
-                end
                 if peek().data == it.data
                     parse_log("Accept " + it.data)
                     push(get())
@@ -309,9 +312,9 @@ struct parser
                 end
             end
             case syntax_type.ref
+                push_stage(it.data)
                 parse_log("Deduct " + it.data)
                 ++log_indent
-                push_stage(it.data)
                 if match_syntax(syn[it.data]) == 1
                     --log_indent
                     parse_log("Accept " + it.data)
@@ -325,20 +328,33 @@ struct parser
             end
             case syntax_type.repeat
                 loop
+                    push_stage("repeat")
                     if match_syntax(it.data) != 1
+                        pop_stage()
                         break
+                    else
+                        merge()
                     end
                 end
             end
             case syntax_type.opt
-                match_syntax(it.data)
+                push_stage("optional")
+                if match_syntax(it.data) == 1
+                    merge()
+                else
+                    pop_stage()
+                end
             end
             case syntax_type.cond
                 var matched = false
                 foreach seq in it.data
+                    push_stage("cond_or")
                     if match_syntax(seq) == 1
                         matched = true
+                        merge()
                         break
+                    else
+                        pop_stage()
                     end
                 end
                 if !matched
@@ -414,6 +430,114 @@ var cminus_lexical = {
 }.to_hash_map()
 @end
 
+@begin
+var cminus_syntax = {
+    # Beginning of Parsing
+    "begin" : {
+        syntax.ref("declaration"), syntax.repeat(syntax.ref("declaration"))
+    },
+    "declaration" : {
+        syntax.ref("type_specifier"), syntax.token("id"), syntax.ref("declaration_s")
+    },
+    "declaration_s" : {syntax.cond_or(
+        {syntax.term("["), syntax.token("num"), syntax.term("]"), syntax.term(";")},
+        {syntax.term("("), syntax.ref("params"), syntax.term(")"), syntax.ref("compound_stmt")}
+    )},
+    "type_specifier" : {syntax.cond_or(
+        {syntax.term("int")},
+        {syntax.term("void")}
+    )},
+    "params" : {syntax.cond_or(
+        {syntax.term("void")},
+        {syntax.ref("param_list")}
+    )},
+    "param_list" : {
+        syntax.ref("param"), syntax.repeat(syntax.term(","), syntax.ref("param"))
+    },
+    "param" : {
+        syntax.ref("type_specifier"), syntax.token("id"), syntax.optional(syntax.term("["), syntax.term("]"))
+    },
+    "compound_stmt" : {
+        syntax.term("{"),
+        syntax.repeat(syntax.cond_or(
+            {syntax.ref("var_declaration")},
+            {syntax.ref("statement")}
+        )),
+        syntax.term("}")
+    },
+    "var_declaration" : {
+        syntax.ref("type_specifier"), syntax.token("id"),
+        syntax.optional(syntax.term("["), syntax.token("num"), syntax.term("]")),
+        syntax.term(";")
+    },
+    "statement" : {syntax.cond_or(
+        {syntax.ref("expression_stmt")},
+        {syntax.ref("compound_stmt")},
+        {syntax.ref("selection_stmt")},
+        {syntax.ref("iteration_stmt")},
+        {syntax.ref("return_stmt")}
+    )},
+    "expression_stmt" : {syntax.cond_or(
+        {syntax.term(";")},
+        {syntax.ref("expression"), syntax.term(";")}
+    )},
+    "selection_stmt" : {
+        syntax.term("if"), syntax.term("("), syntax.ref("expression"), syntax.term(")"), syntax.ref("statement"),
+        syntax.optional(syntax.term("else"), syntax.ref("statement"))
+    },
+    "iteration_stmt" : {
+        syntax.term("while"), syntax.term("("), syntax.ref("expression"), syntax.term(")"), syntax.ref("statement")
+    },
+    "return_stmt" : {
+        syntax.term("return"), syntax.optional(syntax.ref("expression")), syntax.term(";")
+    },
+    "expression" : {syntax.cond_or(
+        {syntax.ref("var"), syntax.term("="), syntax.ref("expression")},
+        {syntax.ref("simple_expression")}
+    )},
+    "var" : {
+        syntax.token("id"), syntax.optional(syntax.term("["), syntax.ref("expression"), syntax.term("]"))
+    },
+    "simple_expression" : {
+        syntax.ref("additive_expression"), syntax.optional(syntax.ref("relop"), syntax.ref("additive_expression"))
+    },
+    "relop" : {syntax.cond_or(
+        {syntax.term("<=")},
+        {syntax.term("<")},
+        {syntax.term(">=")},
+        {syntax.term(">")},
+        {syntax.term("==")},
+        {syntax.term("~=")}
+    )},
+    "additive_expression" : {
+        syntax.ref("term"), syntax.repeat(syntax.ref("addop"), syntax.ref("term"))
+    },
+    "addop" : {syntax.cond_or(
+        {syntax.term("+")},
+        {syntax.term("-")}
+    )},
+    "term" : {
+        syntax.ref("factor"), syntax.repeat(syntax.ref("mulop"), syntax.ref("term"))
+    },
+    "mulop" : {syntax.cond_or(
+        {syntax.term("*")},
+        {syntax.term("/")}
+    )},
+    "factor" : {syntax.cond_or(
+        {syntax.term("("), syntax.ref("expression"), syntax.term(")")},
+        {syntax.token("id"), syntax.optional(syntax.ref("factor_s"))},
+        {syntax.token("num")}
+    )},
+    "factor_s" : {syntax.cond_or(
+        {syntax.term("["), syntax.ref("expression"), syntax.term("]")},
+        {syntax.term("("), syntax.optional(syntax.ref("args")), syntax.term(")")}
+    )},
+    "args" : {
+        syntax.ref("expression"), syntax.repeat(syntax.term(","), syntax.ref("expression"))
+    }
+}.to_hash_map()
+@end
+
 var ifs = iostream.ifstream(context.cmd_args[1])
 var code = new array
 var data = new string
@@ -450,7 +574,7 @@ end
 
 print_header("Begin Lexical Analysis...")
 var l = new lexer
-var lex = l.run(tiny_lexical, data)
+var lex = l.run(cminus_lexical, data)
 
 print_header("Lexer Output")
 foreach it in lex do system.out.println("Type = " + it.type + "\tData = " + it.data + "\tPos = (" + it.pos[0] + ", " + it.pos[1] + ")")
@@ -476,7 +600,7 @@ var p = new parser
 p.log = true
 
 print_header("Begin Syntactic Analysis...")
-var result = p.run(tiny_syntax, lex)
+var result = p.run(cminus_syntax, lex)
 
 if result
     if !l.error_log.empty()
