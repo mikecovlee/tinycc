@@ -2,25 +2,7 @@
 
 import regex
 
-@begin
-var tiny_lexical = {
-    "id"  : regex.build("^[A-Za-z_]\\w*$"),
-    "num" : regex.build("^[0-9]+$"),
-    "sig" : regex.build("^(\\+|-|\\*|/|=|<|\\(|\\)|;|:=?)$"),
-    "ign" : regex.build("^(\\s+|\\{[^\\}]*\\}?)$"),
-    "err" : regex.build("^:$")
-}.to_hash_map()
-@end
-
-@begin
-var cminus_lexical = {
-    "id"  : regex.build("^[A-Za-z_]\\w*$"),
-    "num" : regex.build("^[0-9]+$"),
-    "sig" : regex.build("^(\\+|-|\\*|/|<|<=|>|>=|=|~=?|==|;|,|\\(|\\)|\\[|\\]|\\{|\\})$"),
-    "ign" : regex.build("^(\\s+|/|/\\*[^/]*(\\*/)?)$"),
-    "err" : regex.build("^~$")
-}.to_hash_map()
-@end
+# Lexer
 
 struct token_type
     var pos = {0, 0}
@@ -37,18 +19,41 @@ function make_token(pos, type, data)
     return move(t)
 end
 
+struct lex_error
+    var text = new string
+    var pos = {0, 0}
+end
+
 class lexer
-    function run(lexical, data)
+    var error_log = new array
+    var data = null
+    var pos = {0, 0, 0}
+    function cursor_forward()
+        ++pos[2]
+        if pos[2] != data.size
+            if data[pos[2]] == '\n'
+                ++pos[1]
+                pos[0] = 0
+            else
+                ++pos[0]
+            end
+        end
+    end
+    function error(str, pos)
+        var err = new lex_error
+        err.text = str
+        err.pos = pos
+        --err.pos[0]
+        error_log.push_back(move(err))
+    end
+    function run(lexical, text)
         var lexical_set = new hash_set
         var output = new array
         var buff = new string
-        var pos = {0, 0}
-        for i = 0, i < data.size, null
-            var ch = data[i]
-            if ch == '\n'
-                ++pos[1]
-                pos[0] = 0
-            end
+        var wpos = {0, 0}
+        data = text
+        while pos[2] != data.size
+            var ch = data[pos[2]]
             if lexical_set.empty()
                 var nbuff = to_string(ch)
                 foreach it in lexical
@@ -57,12 +62,12 @@ class lexer
                     end
                 end
                 if !lexical_set.empty()
+                    wpos = pos
                     buff = nbuff
                 else
-                    system.out.println("Unknown Character: " + nbuff)
+                    error("Unknown character \'" + nbuff + "\'", pos)
                 end
-                ++pos[0]
-                ++i
+                cursor_forward()
             else
                 var nbuff = buff + ch
                 var nset = new hash_set
@@ -75,9 +80,9 @@ class lexer
                 if nset.empty()
                     if lexical_set.size > 1
                         if lexical_set.exist("err")
-                            system.out.println("Unexpected Input: " + buff)
+                            error("Unexpected input \"" + buff + "\"", pos)
                         else
-                            system.out.println("Ambiguous Lexical: " + buff)
+                            error("Ambiguous lexical \"" + buff + "\"", pos)
                         end
                         lexical_set = new hash_set
                         continue
@@ -85,20 +90,21 @@ class lexer
                     var rule = null
                     foreach it in lexical_set do rule = it
                     if rule != "ign"
-                        output.push_back(make_token(pos, rule, buff))
+                        output.push_back(make_token(wpos, rule, buff))
                     end
                     lexical_set = new hash_set
                 else
                     lexical_set = nset
                     buff = nbuff
-                    ++pos[0]
-                    ++i
+                    cursor_forward()
                 end
             end
         end
         return output
     end
 end
+
+# Parser
 
 struct syntax_impl
     var type = null
@@ -148,45 +154,15 @@ namespace syntax
     end
 end
 
-@begin
-var tiny_syntax = {
-    # Beginning of Parsing
-    "begin" : {syntax.ref("stmts")},
-    "stmts" : {syntax.ref("statement"), syntax.repeat(syntax.term(";"), syntax.ref("statement"))},
-    "statement" : {syntax.cond_or(
-        {syntax.ref("if-stmt")},
-        {syntax.ref("repeat-stmt")},
-        {syntax.ref("assign-stmt")},
-        {syntax.ref("read-stmt")},
-        {syntax.ref("write-stmt")}
-    )},
-    "if-stmt" : {
-        syntax.term("if"), syntax.ref("expr"), syntax.term("then"), syntax.ref("stmts"),
-        syntax.optional(syntax.term("else"), syntax.ref("stmts")), syntax.term("end")
-    },
-    "repeat-stmt" : {
-        syntax.term("repeat"), syntax.ref("stmts"), syntax.term("until"), syntax.ref("expr")
-    },
-    "assign-stmt" : {syntax.token("id"), syntax.term(":="), syntax.ref("expr")},
-    "read-stmt" : {syntax.term("read"), syntax.token("id")},
-    "write-stmt" : {syntax.term("write"), syntax.ref("expr")},
-    "expr" : {syntax.ref("sexp"), syntax.optional(syntax.ref("cmp-op"), syntax.ref("sexp"))},
-    "cmp-op" : {syntax.cond_or({syntax.term("<")}, {syntax.term("=")})},
-    "sexp" : {syntax.ref("term"), syntax.repeat(syntax.ref("add-op"), syntax.ref("term"))},
-    "add-op" : {syntax.cond_or({syntax.term("+")}, {syntax.term("-")})},
-    "term" : {syntax.ref("fact"), syntax.repeat(syntax.ref("mul-op"), syntax.ref("fact"))},
-    "mul-op" : {syntax.cond_or({syntax.term("*")}, {syntax.term("/")})},
-    "fact" : {syntax.cond_or(
-        {syntax.term("("), syntax.ref("expr"), syntax.term(")")},
-        {syntax.token("num")}, {syntax.token("id")}
-    )}
-}.to_hash_map()
-@end
-
 struct parse_stage
-    var cursor = 0
     var product = new array
-    var error = new array
+    var cursor = 0
+end
+
+struct parse_error
+    var cursor = 0
+    var text = new string
+    var pos = {0, 0}
 end
 
 struct syntax_tree
@@ -195,11 +171,16 @@ struct syntax_tree
 end
 
 struct parser
+    # Error Reporting
+    var error_log = new array
+    var max_cursor = 0
+    # Parsing
     var stack = new array
-    var log_indent = 0
-    var log = false
     var syn = null
     var lex = null
+    # Logging
+    var log_indent = 0
+    var log = false
     # Parsing Stage
     function push_stage()
         var prev_cursor = 0
@@ -243,7 +224,26 @@ struct parser
     end
     # Error & Logs
     function error(str, pos)
-        stack.front.error.push_back(str : pos)
+        var err = new parse_error
+        err.cursor = cursor()
+        err.text = str
+        err.pos = pos
+        if err.cursor > max_cursor
+            max_cursor = err.cursor
+        end
+        error_log.push_back(move(err))
+    end
+    # N: Error Level
+    function get_log(n)
+        var set = new hash_set
+        var arr = new array
+        foreach it in error_log
+            if it.cursor >= max_cursor - n && !set.exist(it.text)
+                set.insert(it.text)
+                arr.push_back(it)
+            end
+        end
+        return move(arr)
     end
     # SS: Stack Size
     # CP: Cursor Position
@@ -295,7 +295,7 @@ struct parser
                     push(get())
                 else
                     parse_log("Reject " + it.data)
-                    error("Unexpected Lexical Token, expected " + it.data, peek().pos)
+                    error("Unexpected Token \'" + peek().data + "\'", peek().pos)
                     return 0
                 end
             end
@@ -309,7 +309,7 @@ struct parser
                     push(get())
                 else
                     parse_log("Reject " + it.data)
-                    error("Unexpected Terminal Symbol, expected " + it.data, peek().pos)
+                    error("Unexpected Token \'" + peek().data + "\'", peek().pos)
                     return 0
                 end
             end
@@ -324,7 +324,6 @@ struct parser
                 else
                     --log_indent
                     parse_log("Reject " + it.data)
-                    error("Deduction Failed: " + it.data, peek().pos)
                     pop_stage()
                     return 0
                 end
@@ -359,18 +358,70 @@ struct parser
         syn = grammar
         lex = lex_output
         push_stage()
-        return match_syntax(syn.begin) != 0
+        return match_syntax(syn.begin) != 0 && eof()
     end
 end
+
+# Main Program
+
+@begin
+var tiny_lexical = {
+    "id"  : regex.build("^[A-Za-z_]\\w*$"),
+    "num" : regex.build("^[0-9]+$"),
+    "sig" : regex.build("^(\\+|-|\\*|/|=|<|\\(|\\)|;|:=?)$"),
+    "ign" : regex.build("^(\\s+|\\{[^\\}]*\\}?)$"),
+    "err" : regex.build("^:$")
+}.to_hash_map()
+@end
+
+@begin
+var tiny_syntax = {
+    # Beginning of Parsing
+    "begin" : {syntax.ref("stmts")},
+    "stmts" : {syntax.ref("statement"), syntax.repeat(syntax.term(";"), syntax.ref("statement"))},
+    "statement" : {syntax.cond_or(
+        {syntax.ref("if-stmt")},
+        {syntax.ref("repeat-stmt")},
+        {syntax.ref("assign-stmt")},
+        {syntax.ref("read-stmt")},
+        {syntax.ref("write-stmt")}
+    )},
+    "if-stmt" : {
+        syntax.term("if"), syntax.ref("expr"), syntax.term("then"), syntax.ref("stmts"),
+        syntax.optional(syntax.term("else"), syntax.ref("stmts")), syntax.term("end")
+    },
+    "repeat-stmt" : {
+        syntax.term("repeat"), syntax.ref("stmts"), syntax.term("until"), syntax.ref("expr")
+    },
+    "assign-stmt" : {syntax.token("id"), syntax.term(":="), syntax.ref("expr")},
+    "read-stmt" : {syntax.term("read"), syntax.token("id")},
+    "write-stmt" : {syntax.term("write"), syntax.ref("expr")},
+    "expr" : {syntax.ref("sexp"), syntax.optional(syntax.ref("cmp-op"), syntax.ref("sexp"))},
+    "cmp-op" : {syntax.cond_or({syntax.term("<")}, {syntax.term("=")})},
+    "sexp" : {syntax.ref("term"), syntax.repeat(syntax.ref("add-op"), syntax.ref("term"))},
+    "add-op" : {syntax.cond_or({syntax.term("+")}, {syntax.term("-")})},
+    "term" : {syntax.ref("fact"), syntax.repeat(syntax.ref("mul-op"), syntax.ref("fact"))},
+    "mul-op" : {syntax.cond_or({syntax.term("*")}, {syntax.term("/")})},
+    "fact" : {syntax.cond_or(
+        {syntax.term("("), syntax.ref("expr"), syntax.term(")")},
+        {syntax.token("num")}, {syntax.token("id")}
+    )}
+}.to_hash_map()
+@end
+
+@begin
+var cminus_lexical = {
+    "id"  : regex.build("^[A-Za-z_]\\w*$"),
+    "num" : regex.build("^[0-9]+$"),
+    "sig" : regex.build("^(\\+|-|\\*|/|<|<=|>|>=|=|~=?|==|;|,|\\(|\\)|\\[|\\]|\\{|\\})$"),
+    "ign" : regex.build("^(\\s+|/|/\\*[^/]*(\\*/)?)$"),
+    "err" : regex.build("^~$")
+}.to_hash_map()
+@end
 
 var ifs = iostream.ifstream(context.cmd_args[1])
 var code = new array
 var data = new string
-while ifs.good()
-    var line = ifs.getline()
-    data += line + "\n"
-    code.push_back(line)
-end
 
 function print_header(txt)
     foreach i in range(txt.size) do system.out.print('#')
@@ -380,10 +431,33 @@ function print_header(txt)
     system.out.println("")
 end
 
-print_header("Begin Lexical Analysis...")
-var lex = (new lexer).run(tiny_lexical, data)
+function print_error(err)
+    foreach it in err
+        system.out.print("File \"" + context.cmd_args[1] + "\", line " + it.pos[1] + ": ")
+        system.out.println(it.text)
+        system.out.println("> " + code[it.pos[1]])
+        foreach i in range(it.pos[0] + 2) do system.out.print(' ')
+        system.out.print("^")
+        system.out.println("\n")
+    end
+end
 
-print_header("Lexical Analysis Results")
+while ifs.good()
+    var line = ifs.getline()
+    data += line + "\n"
+    for i = 0, i < line.size, ++i
+        if line[i] == '\t'
+            line.assign(i, ' ')
+        end
+    end
+    code.push_back(line)
+end
+
+print_header("Begin Lexical Analysis...")
+var l = new lexer
+var lex = l.run(tiny_lexical, data)
+
+print_header("Lexer Output")
 foreach it in lex do system.out.println("Type = " + it.type + "\tData = " + it.data + "\tPos = (" + it.pos[0] + ", " + it.pos[1] + ")")
 
 function dfs(indent, t)
@@ -405,23 +479,22 @@ end
 var p = new parser
 p.log = true
 
-print_header("Begin Parsing...")
+print_header("Begin Syntactic Analysis...")
 var result = p.run(tiny_syntax, lex)
 
-print_header("Parsing Results")
-
 if result
+    if !l.error_log.empty()
+        print_header("Compilation Warning")
+        print_error(l.error_log)
+    end
+    print_header("Parser Output")
     var indent = 0
     foreach ss in p.stack
         foreach it in ss.product do dfs(indent, it)
     end
 else
-    foreach it in p.stack.front.error
-        system.out.println(it.first)
-        system.out.println("\t" + code[it.second[1]])
-        system.out.print("\t")
-        foreach i in range(it.second[0]) do system.out.print(' ')
-        system.out.print("^")
-        system.out.println("\n")
-    end
+    print_header("Compilation Error")
+    var err = {(l.error_log)..., (p.get_log(0))...}
+    err.sort([](lhs, rhs)->lhs.pos[1] < rhs.pos[1])
+    print_error(err)
 end
