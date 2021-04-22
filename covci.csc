@@ -154,8 +154,13 @@ namespace syntax
     end
 end
 
+struct syntax_tree
+    var root = new string
+    var nodes = new array
+end
+
 struct parse_stage
-    var product = new array
+    var product = new syntax_tree
     var cursor = 0
 end
 
@@ -163,11 +168,6 @@ struct parse_error
     var cursor = 0
     var text = new string
     var pos = {0, 0}
-end
-
-struct syntax_tree
-    var root = new string
-    var nodes = new array
 end
 
 struct parser
@@ -182,12 +182,13 @@ struct parser
     var log_indent = 0
     var log = false
     # Parsing Stage
-    function push_stage()
+    function push_stage(root)
         var prev_cursor = 0
         if !stack.empty()
             prev_cursor = stack.front.cursor
         end
         stack.push_front(new parse_stage)
+        stack.front.product.root = root
         stack.front.cursor = prev_cursor
     end
     function pop_stage()
@@ -195,13 +196,7 @@ struct parser
     end
     # Parsing Product
     function push(val)
-        stack.front.product.push_back(val)
-    end
-    function pop()
-        return stack.front.product.pop_front()
-    end
-    function top()
-        return stack.front.product
+        stack.front.product.nodes.push_back(val)
     end
     # Token Streams
     function cursor()
@@ -316,7 +311,7 @@ struct parser
             case syntax_type.ref
                 parse_log("Deduct " + it.data)
                 ++log_indent
-                push_stage()
+                push_stage(it.data)
                 if match_syntax(syn[it.data]) == 1
                     --log_indent
                     parse_log("Accept " + it.data)
@@ -357,7 +352,7 @@ struct parser
     function run(grammar, lex_output)
         syn = grammar
         lex = lex_output
-        push_stage()
+        push_stage("begin")
         return match_syntax(syn.begin) != 0 && eof()
     end
 end
@@ -460,19 +455,20 @@ var lex = l.run(tiny_lexical, data)
 print_header("Lexer Output")
 foreach it in lex do system.out.println("Type = " + it.type + "\tData = " + it.data + "\tPos = (" + it.pos[0] + ", " + it.pos[1] + ")")
 
-function dfs(indent, t)
-    if t == null
+function print_ast(indent, tree)
+    if tree == null
         return
     end
-    if typeid t == typeid array
-        if t.size == 1
-            dfs(indent, t[0])
-        else
-            foreach it in t do dfs(indent + 1, it)
+    system.out.println(tree.root)
+    foreach it in tree.nodes
+        foreach i in range(indent + 2) do system.out.print(' ')
+        system.out.print(tree.root + " -> ")
+        if typeid it == typeid syntax_tree
+            print_ast(indent + 2, it)
         end
-    else
-        foreach i in range(indent) do system.out.print(' ')
-        system.out.println(t.data)
+        if typeid it == typeid token_type
+            system.out.println("\"" + it.data + "\"")
+        end
     end
 end
 
@@ -489,9 +485,7 @@ if result
     end
     print_header("Parser Output")
     var indent = 0
-    foreach ss in p.stack
-        foreach it in ss.product do dfs(indent, it)
-    end
+    foreach ss in p.stack do print_ast(indent, ss.product)
 else
     print_header("Compilation Error")
     var err = {(l.error_log)..., (p.get_log(0))...}
