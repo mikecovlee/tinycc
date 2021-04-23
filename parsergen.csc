@@ -52,7 +52,7 @@ var cminus_lexical = {
     "id"  : regex.build("^[A-Za-z_]\\w*$"),
     "num" : regex.build("^[0-9]+$"),
     "sig" : regex.build("^(\\+|-|\\*|/|<|<=|>|>=|=|~=?|==|;|,|\\(|\\)|\\[|\\]|\\{|\\})$"),
-    "ign" : regex.build("^(\\s+|/|/\\*[^/]*(\\*/)?)$"),
+    "ign" : regex.build("^(\\s+|/|/\\*([^\\*]|\\*(?!/))*(\\*/)?)$"),
     "err" : regex.build("^~$")
 }.to_hash_map()
 @end
