@@ -170,14 +170,69 @@ var covscript_lexical = {
     "id" : regex.build("^[A-Za-z_]\\w*$"),
     "num" : regex.build("^[0-9]+(\\.[0-9]+)?$"),
     "str" : regex.build("^(\"|\"([^\"]|\\\\\")*\"?)$"),
-    "endl" : regex.build("^(;|\\n+)$"),
     "char" : regex.build("^(\'|\'([^\']|\\\\(0|\\\\|\'|\"|\\w))\'?)$"),
-    "bsig" : regex.build("^(=|:|\\?|->|\\.\\.|\\.\\.\\.)$"),
+    "bsig" : regex.build("^(;|=|:|\\?|->|\\.\\.|\\.\\.\\.)$"),
     "msig" : regex.build("^(\\+|\\+=|-|-=|\\*|\\*=|/|/=|%|%=|\\^|\\^=|\\+\\+|--)$"),
     "lsig" : regex.build("^(>|<|&|(\\|)|&&|(\\|\\|)|!|==|!=|>=|<=)$"),
     "brac" : regex.build("^(\\(|\\)|\\[|\\]|\\{|\\}|,|\\.)$"),
-    "ign" : regex.build("^([ \\f\\r\\t\\v]+|#.*\\n?|@.*\\n?)$"),
+    "ign" : regex.build("^(\\s+|#.*\\n?|@.*\\n?)$"),
     "err" : regex.build("^(\"|\'|&|(\\|)|\\.\\.)$")
+}.to_hash_map()
+@end
+
+@begin
+var covscript_syntax = {
+    # Beginning of Parsing
+    "begin" : {
+        syntax.ref("stmts")
+    },
+    "stmts" : {
+        syntax.repeat(syntax.ref("statement"))
+    },
+    "statement" : {syntax.cond_or(
+        {syntax.ref("if-stmt")},
+        {syntax.ref("expr")}
+    )},
+    "if-stmt" : {
+        syntax.term("if"), syntax.ref("expr"), syntax.ref("stmts"), syntax.term("end")
+    },
+    "expr" : {syntax.cond_or(
+        {syntax.ref("asi-expr")},
+        {syntax.ref("add-expr")}
+    )},
+    "asi-expr" : {
+        syntax.token("lhs"), syntax.term("="), syntax.ref("expr")
+    },
+    "lhs" : {syntax.cond_or(
+        {syntax.token("id")},
+        {syntax.token("id"), syntax.term("["), syntax.ref("expr"), syntax.term("]")}
+    )},
+    "add-expr" : {
+        syntax.ref("term"), syntax.repeat(syntax.ref("add-op"), syntax.ref("term"))
+    },
+    "add-op" : {syntax.cond_or(
+        {syntax.term("+")},
+        {syntax.term("-")}
+    )},
+    "term" : {
+        syntax.ref("factor"), syntax.repeat(syntax.ref("mul-op"), syntax.ref("term"))
+    },
+    "mul-op" : {syntax.cond_or(
+        {syntax.term("*")},
+        {syntax.term("/")}
+    )},
+    "factor" : {syntax.cond_or(
+        {syntax.term("("), syntax.ref("epxr"), syntax.term(")")},
+        {syntax.token("id"), syntax.optional(syntax.ref("factor_s"))},
+        {syntax.token("num")}
+    )},
+    "factor_s" : {syntax.cond_or(
+        {syntax.term("["), syntax.ref("expr"), syntax.term("]")},
+        {syntax.term("("), syntax.optional(syntax.ref("args")), syntax.term(")")}
+    )},
+    "args" : {
+        syntax.ref("expr"), syntax.repeat(syntax.term(","), syntax.ref("expr"))
+    }
 }.to_hash_map()
 @end
 
@@ -195,7 +250,7 @@ cminus_grammar.stx = cminus_syntax
 cminus_grammar.ext = ".*\\.c-"
 
 covscript_grammar.lex = covscript_lexical
-covscript_grammar.stx = null
+covscript_grammar.stx = covscript_syntax
 covscript_grammar.ext = ".*\\.(csp|csc)"
 
 main.add_grammar("tiny", tiny_grammar)
