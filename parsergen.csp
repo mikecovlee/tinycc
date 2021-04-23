@@ -479,6 +479,10 @@ class generator
             if enable_log
                 print_header("Begin Lexical Analysis...")
             end
+            if rules[lang].lex == null
+                print_header("Lexical rules not found! Stop")
+                return
+            end
             token_buff = lexer.run(rules[lang].lex, input)
             if !lexer.error_log.empty()
                 if stop_on_error
@@ -497,6 +501,10 @@ class generator
                 print_header("Lexer Output")
                 foreach it in token_buff do system.out.println("Type = " + it.type + "\tData = " + it.data + "\tPos = (" + it.pos[0] + ", " + it.pos[1] + ")")
                 print_header("Begin Syntactic Analysis...")
+            end
+            if rules[lang].stx == null
+                print_header("Syntactic rules not found! Stop")
+                return
             end
             if parser.run(rules[lang].stx, token_buff)
                 ast = parser.stack.front.product

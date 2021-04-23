@@ -165,8 +165,24 @@ var cminus_syntax = {
 }.to_hash_map()
 @end
 
+@begin
+var covscript_lexical = {
+    "id" : regex.build("^[A-Za-z_]\\w*$"),
+    "num" : regex.build("^[0-9]+(\\.[0-9]+)?$"),
+    "str" : regex.build("^(\"|\"([^\"]|\\\\\")*\"?)$"),
+    "char" : regex.build("^(\'|\'([^\']|\\\\(0|\\\\|\'|\"|\\w))\'?)$"),
+    "bsig" : regex.build("^(=|;|:|\\?|->|\\.\\.|\\.\\.\\.)$"),
+    "msig" : regex.build("^(\\+|\\+=|-|-=|\\*|\\*=|/|/=|%|%=|\\^|\\^=|\\+\\+|--)$"),
+    "lsig" : regex.build("^(>|<|&|(\\|)|&&|(\\|\\|)|!|==|!=|>=|<=)$"),
+    "brac" : regex.build("^(\\(|\\)|\\[|\\]|\\{|\\}|,|\\.)$"),
+    "ign" : regex.build("^(\\s+|#.*|@.*)$"),
+    "err" : regex.build("^(\"|\'|&|(\\|)|\\.\\.)$")
+}.to_hash_map()
+@end
+
 var tiny_grammar = new parsergen.grammar
 var cminus_grammar = new parsergen.grammar
+var covscript_grammar = new parsergen.grammar
 var main = new parsergen.generator
 
 tiny_grammar.lex = tiny_lexical
@@ -177,8 +193,13 @@ cminus_grammar.lex = cminus_lexical
 cminus_grammar.stx = cminus_syntax
 cminus_grammar.ext = ".*\\.c-"
 
+covscript_grammar.lex = covscript_lexical
+covscript_grammar.stx = null
+covscript_grammar.ext = ".*\\.(csp|csc)"
+
 main.add_grammar("tiny", tiny_grammar)
 main.add_grammar("c-", cminus_grammar)
+main.add_grammar("covscript", covscript_grammar)
 
 main.stop_on_error = false
 main.enable_log = true
