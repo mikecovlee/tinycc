@@ -163,11 +163,17 @@ class lexer_type
                     if lexical_set.size > 1
                         if lexical_set.exist("err")
                             error("Unexpected input \"" + buff + "\"", pos)
+                            lexical_set = new hash_set
+                            continue
                         else
-                            error("Ambiguous lexical \"" + buff + "\"", pos)
+                            if lexical_set.exist("ign")
+                                lexical_set.erase("ign")
+                            else
+                                error("Ambiguous lexical \"" + buff + "\"", pos)
+                                lexical_set = new hash_set
+                                continue
+                            end
                         end
-                        lexical_set = new hash_set
-                        continue
                     end
                     var rule = null
                     foreach it in lexical_set do rule = it
@@ -419,7 +425,7 @@ end
 
 function print_error(code, err)
     foreach it in err
-        system.out.print("File \"" + context.cmd_args[1] + "\", line " + it.pos[1] + ": ")
+        system.out.print("File \"" + context.cmd_args[1] + "\", line " + (it.pos[1] + 1) + ": ")
         system.out.println(it.text)
         system.out.println("> " + code[it.pos[1]])
         foreach i in range(it.pos[0] + 2) do system.out.print(' ')
