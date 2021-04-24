@@ -222,10 +222,14 @@ var covscript_syntax = {
         {syntax.term("/")}
     )},
     "factor" : {syntax.cond_or(
-        {syntax.term("("), syntax.ref("epxr"), syntax.term(")")},
-        {syntax.token("id"), syntax.optional(syntax.ref("factor_s"))},
+        {syntax.term("("), syntax.ref("expr"), syntax.term(")")},
+        {syntax.ref("object"), syntax.optional(syntax.ref("factor_s"))},
+        {syntax.token("str")},
         {syntax.token("num")}
     )},
+    "object" : {
+        syntax.token("id"), syntax.repeat(syntax.term("."), syntax.ref("object"))
+    },
     "factor_s" : {syntax.cond_or(
         {syntax.term("["), syntax.ref("expr"), syntax.term("]")},
         {syntax.term("("), syntax.optional(syntax.ref("args")), syntax.term(")")}

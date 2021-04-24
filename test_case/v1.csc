@@ -1,3 +1,3 @@
-if 1
-    1 + 2
+if system.in.input()
+    system.out.println("Hello")
 end
