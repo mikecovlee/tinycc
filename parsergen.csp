@@ -37,9 +37,10 @@ namespace syntax_type
         token  = 1,
         term   = 2,
         ref    = 3,
-        repeat = 4,
-        opt    = 5,
-        cond   = 6
+        peek   = 4,
+        repeat = 5,
+        opt    = 6,
+        cond   = 7
 @end
 end
 
@@ -59,6 +60,10 @@ namespace syntax
     end
     function ref(name)
         return make_syntax(syntax_type.ref, name)
+    end
+    # ?!(...), Negative Lookahead
+    function peek(...args)
+        return make_syntax(syntax_type.peek, args)
     end
     # {...}
     function repeat(...args)
@@ -107,7 +112,10 @@ struct lex_error
 end
 
 class lexer_type
+    var lexical_set = new hash_set
     var error_log = new array
+    var output = new array
+    var buff = new string
     var data = null
     var pos = {0, 0, 0}
     function cursor_forward()
@@ -128,10 +136,30 @@ class lexer_type
         --err.pos[0]
         error_log.push_back(move(err))
     end
+    function process_token()
+        if lexical_set.size > 1
+            if lexical_set.exist("err")
+                error("Unexpected input \"" + buff + "\"", pos)
+                lexical_set = new hash_set
+                continue
+            else
+                if lexical_set.exist("ign")
+                    lexical_set.erase("ign")
+                end
+                if lexical_set.size > 1
+                    error("Ambiguous lexical \"" + buff + "\"", pos)
+                    lexical_set = new hash_set
+                    continue
+                end
+            end
+        end
+        var rule = null
+        foreach it in lexical_set do rule = it
+        if rule != "ign"
+            output.push_back(make_token(wpos, rule, buff))
+        end
+    end
     function run(lexical, text)
-        var lexical_set = new hash_set
-        var output = new array
-        var buff = new string
         var wpos = {0, 0}
         data = text
         while pos[2] != data.size
@@ -160,27 +188,7 @@ class lexer_type
                 end
                 nset = hash_set.subtract(lexical_set, nset)
                 if nset.empty()
-                    if lexical_set.size > 1
-                        if lexical_set.exist("err")
-                            error("Unexpected input \"" + buff + "\"", pos)
-                            lexical_set = new hash_set
-                            continue
-                        else
-                            if lexical_set.exist("ign")
-                                lexical_set.erase("ign")
-                            end
-                            if lexical_set.size > 1
-                                error("Ambiguous lexical \"" + buff + "\"", pos)
-                                lexical_set = new hash_set
-                                continue
-                            end
-                        end
-                    end
-                    var rule = null
-                    foreach it in lexical_set do rule = it
-                    if rule != "ign"
-                        output.push_back(make_token(wpos, rule, buff))
-                    end
+                    process_token()
                     lexical_set = new hash_set
                 else
                     lexical_set = nset
@@ -189,6 +197,7 @@ class lexer_type
                 end
             end
         end
+        process_token()
         return output
     end
 end
@@ -209,6 +218,16 @@ struct parse_error
     var cursor = 0
     var text = new string
     var pos = {0, 0}
+end
+
+namespace parse_state
+@begin
+    constant
+        accept =  1,
+        stop   =  2,
+        reject = -1,
+        eof    = -2
+@end
 end
 
 class parser_type
@@ -308,18 +327,14 @@ class parser_type
         foreach it in dat.nodes do push(it)
         cursor() = new_cursor
     end
-    # Return Values
-    # 1: Success
-    # 0: Failed
-    #-1: End of Input
     function match_syntax(seq)
         foreach it in seq
             var result = this.match(it)
-            if result != 1
+            if result != parse_state.accept
                 return result
             end
         end
-        return 1
+        return parse_state.accept
     end
     # Match:  Terminal Symbols
     # Deduct: Unstarred Nonterminals
@@ -327,7 +342,7 @@ class parser_type
     # Reject: Matching Failed, Rollback
     function match(it)
         if eof()
-            return -1
+            return parse_state.eof
         end
         switch it.type
             case syntax_type.token
@@ -338,7 +353,7 @@ class parser_type
                 else
                     parse_log("Reject " + it.data)
                     error("Unexpected Token \'" + peek().data + "\'", peek().pos)
-                    return 0
+                    return parse_state.reject
                 end
             end
             case syntax_type.term
@@ -349,14 +364,15 @@ class parser_type
                 else
                     parse_log("Reject " + it.data)
                     error("Unexpected Token \'" + peek().data + "\'", peek().pos)
-                    return 0
+                    return parse_state.reject
                 end
             end
             case syntax_type.ref
                 push_stage(it.data)
                 parse_log("Deduct " + it.data)
                 ++log_indent
-                if match_syntax(syn[it.data]) == 1
+                var result = match_syntax(syn[it.data])
+                if result > 0
                     --log_indent
                     parse_log("Accept " + it.data)
                     accept()
@@ -364,23 +380,40 @@ class parser_type
                     --log_indent
                     parse_log("Reject " + it.data)
                     pop_stage()
-                    return 0
+                    return result
+                end
+            end
+            case syntax_type.peek
+                push_stage("peek")
+                var result = match_syntax(it.data)
+                pop_stage()
+                if result == parse_state.accept
+                    return parse_state.stop
                 end
             end
             case syntax_type.repeat
                 loop
                     push_stage("repeat")
-                    if match_syntax(it.data) != 1
-                        pop_stage()
-                        break
-                    else
-                        merge()
+                    var result = match_syntax(it.data)
+                    switch result
+                        case parse_state.accept
+                            merge()
+                        end
+                        case parse_state.stop
+                            merge()
+                            break
+                        end
+                        default
+                            pop_stage()
+                            break
+                        end
                     end
                 end
             end
             case syntax_type.opt
                 push_stage("optional")
-                if match_syntax(it.data) == 1
+                var result = match_syntax(it.data)
+                if result > 0
                     merge()
                 else
                     pop_stage()
@@ -390,7 +423,8 @@ class parser_type
                 var matched = false
                 foreach seq in it.data
                     push_stage("cond_or")
-                    if match_syntax(seq) == 1
+                    var result = match_syntax(seq)
+                    if result > 0
                         matched = true
                         merge()
                         break
@@ -400,17 +434,17 @@ class parser_type
                 end
                 if !matched
                     error("No matching syntax", peek().pos)
-                    return 0
+                    return parse_state.reject
                 end
             end
         end
-        return 1
+        return parse_state.accept
     end
     function run(grammar, lex_output)
         syn = grammar
         lex = lex_output
         push_stage("begin")
-        return match_syntax(syn.begin) != 0 && eof() && stack.size == 1
+        return match_syntax(syn.begin) > 0 && eof() && stack.size == 1
     end
 end
 

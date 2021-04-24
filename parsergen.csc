@@ -167,15 +167,16 @@ var cminus_syntax = {
 
 @begin
 var covscript_lexical = {
+    "endl" : regex.build("^(;|\\n+)$"),
     "id" : regex.build("^[A-Za-z_]\\w*$"),
     "num" : regex.build("^[0-9]+(\\.[0-9]+)?$"),
     "str" : regex.build("^(\"|\"([^\"]|\\\\\")*\"?)$"),
     "char" : regex.build("^(\'|\'([^\']|\\\\(0|\\\\|\'|\"|\\w))\'?)$"),
-    "bsig" : regex.build("^(;|=|:|\\?|->|\\.\\.|\\.\\.\\.)$"),
+    "bsig" : regex.build("^(=|:|\\?|->|\\.\\.|\\.\\.\\.)$"),
     "msig" : regex.build("^(\\+|\\+=|-|-=|\\*|\\*=|/|/=|%|%=|\\^|\\^=|\\+\\+|--)$"),
-    "lsig" : regex.build("^(>|<|&|(\\|)|&&|(\\|\\|)|!|==|!=|>=|<=)$"),
+    "lsig" : regex.build("^(>|<|&|(\\|)|&&|(\\|\\|)|!|==?|!=?|>=?|<=?)$"),
     "brac" : regex.build("^(\\(|\\)|\\[|\\]|\\{|\\}|,|\\.)$"),
-    "ign" : regex.build("^(\\s+|#.*\\n?|@.*\\n?)$"),
+    "ign" : regex.build("^([ \\f\\r\\t\\v]+|#.*\\n?|@.*\\n?)$"),
     "err" : regex.build("^(\"|\'|&|(\\|)|\\.\\.)$")
 }.to_hash_map()
 @end
@@ -187,18 +188,24 @@ var covscript_syntax = {
         syntax.ref("stmts")
     },
     "stmts" : {
-        syntax.repeat(syntax.ref("statement"))
+        syntax.repeat(syntax.ref("statement"), syntax.token("endl"))
     },
     "statement" : {syntax.cond_or(
         {syntax.ref("if-stmt")},
         {syntax.ref("expr")}
     )},
     "if-stmt" : {
-        syntax.term("if"), syntax.ref("expr"), syntax.ref("stmts"), syntax.term("end")
+        syntax.term("if"), syntax.ref("expr"), syntax.token("endl"),
+        syntax.ref("if-stmts"),
+        syntax.optional(syntax.term("else"), syntax.optional(syntax.term("if"), syntax.ref("expr")),
+            syntax.token("endl"), syntax.ref("if-stmts")), syntax.term("end")
+    },
+    "if-stmts" : {
+        syntax.repeat(syntax.ref("statement"), syntax.token("endl"), syntax.peek(syntax.cond_or({syntax.term("else")}, {syntax.term("end")})))
     },
     "expr" : {syntax.cond_or(
         {syntax.ref("asi-expr")},
-        {syntax.ref("add-expr")}
+        {syntax.ref("simple-expr")}
     )},
     "asi-expr" : {
         syntax.ref("lhs"), syntax.term("="), syntax.ref("expr")
@@ -207,14 +214,25 @@ var covscript_syntax = {
         {syntax.token("id")},
         {syntax.token("id"), syntax.term("["), syntax.ref("expr"), syntax.term("]")}
     )},
+    "simple-expr" : {
+        syntax.ref("add-expr"), syntax.repeat(syntax.ref("cmp-op"), syntax.ref("add-expr"))
+    },
+    "cmp-op" : {syntax.cond_or(
+        {syntax.term(">")},
+        {syntax.term("<")},
+        {syntax.term(">=")},
+        {syntax.term("<=")},
+        {syntax.term("==")},
+        {syntax.term("!=")}
+    )},
     "add-expr" : {
-        syntax.ref("term"), syntax.repeat(syntax.ref("add-op"), syntax.ref("term"))
+        syntax.ref("mul-expr"), syntax.repeat(syntax.ref("add-op"), syntax.ref("mul-expr"))
     },
     "add-op" : {syntax.cond_or(
         {syntax.term("+")},
         {syntax.term("-")}
     )},
-    "term" : {
+    "mul-expr" : {
         syntax.ref("factor"), syntax.repeat(syntax.ref("mul-op"), syntax.ref("term"))
     },
     "mul-op" : {syntax.cond_or(
