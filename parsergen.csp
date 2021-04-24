@@ -168,7 +168,8 @@ class lexer_type
                         else
                             if lexical_set.exist("ign")
                                 lexical_set.erase("ign")
-                            else
+                            end
+                            if lexical_set.size > 1
                                 error("Ambiguous lexical \"" + buff + "\"", pos)
                                 lexical_set = new hash_set
                                 continue

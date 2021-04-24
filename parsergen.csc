@@ -201,7 +201,7 @@ var covscript_syntax = {
         {syntax.ref("add-expr")}
     )},
     "asi-expr" : {
-        syntax.token("lhs"), syntax.term("="), syntax.ref("expr")
+        syntax.ref("lhs"), syntax.term("="), syntax.ref("expr")
     },
     "lhs" : {syntax.cond_or(
         {syntax.token("id")},
