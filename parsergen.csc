@@ -211,67 +211,88 @@ var covscript_syntax = {
     "expr-stmt" : {
         syntax.ref("expr"), syntax.ref("endline")
     },
-    "expr" : {syntax.cond_or(
-        {syntax.ref("asi-expr")},
-        {syntax.ref("simple-expr")}
-    )},
-    "asi-expr" : {
-        syntax.ref("lhs"), syntax.term("="), syntax.ref("expr")
+    "expr" : {
+        syntax.ref("asi-expr"), syntax.optional(syntax.term(","), syntax.ref("expr"))
     },
-    "lhs" : {syntax.cond_or(
-        {syntax.token("id")},
-        {syntax.token("id"), syntax.term("["), syntax.ref("expr"), syntax.term("]")}
+    "asi-expr" : {syntax.cond_or(
+        {syntax.ref("cond-expr")},
+        {syntax.ref("unary-expr"), syntax.ref("asi-op"), syntax.ref("asi-expr")}
     )},
-    "simple-expr" : {
-        syntax.ref("cmp-expr"), syntax.repeat(syntax.ref("logic-op"), syntax.ref("cmp-expr"))
+    "asi-op" : {syntax.cond_or(
+        {syntax.term("=")},
+        {syntax.term("+=")},
+        {syntax.term("-=")},
+        {syntax.term("*=")},
+        {syntax.term("/=")},
+        {syntax.term("%=")},
+        {syntax.term("^=")}
+    )},
+    "cond-expr" : {
+        syntax.ref("logic-or-expr"), syntax.optional(syntax.term("?"), syntax.ref("expr"), syntax.term(":"), syntax.ref("cond-expr"))
     },
-    "logic-op" : {syntax.cond_or(
-        {syntax.term("&&")},
-        {syntax.term("||")},
-        {syntax.term("and")},
-        {syntax.term("or")}
-    )},
-    "cmp-expr" : {
-        syntax.optional(syntax.term("!")), syntax.ref("add-expr"), syntax.repeat(syntax.ref("cmp-op"), syntax.ref("add-expr"))
+    "logic-or-expr" : {
+        syntax.ref("logic-and-expr"), syntax.optional(syntax.cond_or({syntax.term("||")}, {syntax.term("or")}), syntax.ref("logic-or-expr"))
     },
-    "cmp-op" : {syntax.cond_or(
-        {syntax.term(">")},
-        {syntax.term("<")},
-        {syntax.term(">=")},
-        {syntax.term("<=")},
-        {syntax.term("==")},
-        {syntax.term("!=")}
-    )},
+    "logic-and-expr" : {
+        syntax.ref("equal-expr"), syntax.optional(syntax.cond_or({syntax.term("&&")}, {syntax.term("and")}), syntax.ref("logic-and-expr"))
+    },
+    "equal-expr" : {
+        syntax.ref("relat-expr"), syntax.optional(syntax.cond_or({syntax.term("==")}, {syntax.term("!=")}), syntax.ref("equal-expr"))
+    },
+    "relat-expr" : {
+        syntax.ref("add-expr"), syntax.optional(syntax.cond_or({syntax.term(">")}, {syntax.term("<")}, {syntax.term(">=")}, {syntax.term("<=")}), syntax.ref("relat-expr"))
+    },
     "add-expr" : {
-        syntax.ref("mul-expr"), syntax.repeat(syntax.ref("add-op"), syntax.ref("mul-expr"))
+        syntax.ref("mul-expr"), syntax.optional(syntax.cond_or({syntax.term("+")}, {syntax.term("-")}), syntax.ref("add-expr"))
     },
-    "add-op" : {syntax.cond_or(
-        {syntax.term("+")},
-        {syntax.term("-")}
-    )},
     "mul-expr" : {
-        syntax.ref("factor"), syntax.repeat(syntax.ref("mul-op"), syntax.ref("term"))
+        syntax.ref("unary-expr"), syntax.optional(syntax.cond_or({syntax.term("*")}, {syntax.term("/")}, {syntax.term("%")}, {syntax.term("^")}), syntax.ref("mul-expr"))
     },
-    "mul-op" : {syntax.cond_or(
-        {syntax.term("*")},
-        {syntax.term("/")}
+    "unary-expr" : {syntax.cond_or(
+        {syntax.ref("unary-op"), syntax.ref("unary-expr")},
+        {syntax.ref("prim-expr"), syntax.optional(syntax.ref("postfix-expr"))}
     )},
-    "factor" : {syntax.cond_or(
-        {syntax.term("("), syntax.ref("expr"), syntax.term(")")},
-        {syntax.ref("object"), syntax.optional(syntax.ref("factor_s"))},
-        {syntax.term("{"), syntax.optional(syntax.ref("args")), syntax.term("}")},
-        {syntax.token("str")},
-        {syntax.token("num")}
+    "unary-op" : {syntax.cond_or(
+        {syntax.term("++")},
+        {syntax.term("--")},
+        {syntax.term("*")},
+        {syntax.term("-")},
+        {syntax.term("!")}
+    )},
+    "postfix-expr" : {
+        syntax.cond_or({syntax.term("++")}, {syntax.term("--")}), syntax.optional(syntax.ref("postfix-expr"))
+    },
+    "prim-expr" : {syntax.cond_or(
+        {syntax.ref("constant")},
+        {syntax.ref("object"), syntax.optional(syntax.cond_or({syntax.ref("fcall")}, {syntax.ref("index")}))}
     )},
     "object" : {
-        syntax.token("id"), syntax.repeat(syntax.term("."), syntax.ref("object"))
-    },
-    "factor_s" : {syntax.cond_or(
-        {syntax.term("["), syntax.ref("expr"), syntax.term("]")},
-        {syntax.term("("), syntax.optional(syntax.ref("args")), syntax.term(")")}
+        syntax.ref("singleton"), syntax.optional(syntax.cond_or({syntax.term("->")}, {syntax.term(".")}), syntax.ref("prim-expr"))
+    }
+    "singleton" : {syntax.cond_or(
+        {syntax.ref("array"), syntax.optional(syntax.ref("index"))},
+        {syntax.token("str"), syntax.optional(syntax.ref("index"))},
+        {syntax.ref("element")},
+        {syntax.token("char")}
     )},
-    "args" : {
-        syntax.ref("expr"), syntax.repeat(syntax.term(","), syntax.ref("expr"))
+    "element" : {
+        syntax.cond_or({syntax.token("id")}, {syntax.term("("), syntax.ref("expr"), syntax.term(")")}),
+        syntax.optional(syntax.cond_or({syntax.ref("fcall")}, {syntax.ref("index")}))
+    },
+    "constant" : {syntax.cond_or(
+        {syntax.token("num")},
+        {syntax.term("null")},
+        {syntax.term("true")},
+        {syntax.term("false")}
+    )},
+    "array" : {
+        syntax.term("{"), syntax.optional(syntax.ref("expr")), syntax.term("}")
+    },
+    "fcall" : {
+        syntax.term("("), syntax.optional(syntax.ref("expr")), syntax.term(")")
+    },
+    "index" : {
+        syntax.term("["), syntax.ref("asi-expr"), syntax.term("]")
     }
 }.to_hash_map()
 @end
@@ -298,7 +319,7 @@ main.add_grammar("c-", cminus_grammar)
 main.add_grammar("covscript", covscript_grammar)
 
 main.stop_on_error = false
-#main.enable_log = true
+main.enable_log = true
 
 main.from_file(context.cmd_args.at(1))
 

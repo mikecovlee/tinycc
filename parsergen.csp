@@ -444,8 +444,7 @@ class parser_type
                 var matched = false
                 foreach seq in it.data
                     push_stage("cond_or")
-                    var result = match_syntax(seq)
-                    if result > 0
+                    if match_syntax(seq) == parse_state.accept
                         matched = true
                         merge()
                         break
