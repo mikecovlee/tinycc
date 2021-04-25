@@ -555,7 +555,14 @@ class generator
             parser.log = enable_log
             if enable_log
                 print_header("Lexer Output")
-                foreach it in token_buff do system.out.println("Type = " + it.type + "\tData = " + it.data + "\tPos = (" + it.pos[0] + ", " + it.pos[1] + ")")
+                var max_align = to_string(token_buff.size).size
+                foreach i in range(token_buff.size)
+                    link it = token_buff[i]
+                    var align = max_align - to_string(i).size
+                    system.out.print("CP = " + i)
+                    foreach x in range(align) do system.out.print(' ')
+                    system.out.println("  Type = " + it.type + "\tData = " + it.data + "\tPos = (" + it.pos[0] + ", " + it.pos[1] + ")")
+                end
                 print_header("Begin Syntactic Analysis...")
             end
             if rules[lang].stx == null
