@@ -302,6 +302,22 @@ main.stop_on_error = false
 
 main.from_file(context.cmd_args.at(1))
 
+function compress_ast(n)
+    foreach it in n.nodes
+        while typeid it == typeid parsergen.syntax_tree && it.nodes.size == 1
+            it = it.nodes.front
+        end
+        if typeid it == typeid parsergen.syntax_tree
+            compress_ast(it)
+        else
+            if it.type == "endl"
+                it.data = "\\n"
+            end
+        end
+    end
+end
+
 if main.ast != null
+    compress_ast(main.ast)
     parsergen.print_ast(main.ast)
 end
