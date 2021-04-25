@@ -37,7 +37,7 @@ namespace syntax_type
         token  = 1,
         term   = 2,
         ref    = 3,
-        peek   = 4,
+        nlook  = 4,
         repeat = 5,
         opt    = 6,
         cond   = 7
@@ -62,8 +62,8 @@ namespace syntax
         return make_syntax(syntax_type.ref, name)
     end
     # ?!(...), Negative Lookahead
-    function peek(...args)
-        return make_syntax(syntax_type.peek, args)
+    function nlook(...args)
+        return make_syntax(syntax_type.nlook, args)
     end
     # {...}
     function repeat(...args)
@@ -235,6 +235,7 @@ class parser_type
     var error_log = new array
     var max_cursor = 0
     # Parsing
+    var on_ign = false
     var stack = new array
     var syn = null
     var lex = null
@@ -336,6 +337,20 @@ class parser_type
         end
         return parse_state.accept
     end
+    function ignore()
+        if !on_ign && syn.exist("ignore")
+            on_ign = true
+            push_stage("ignore")
+            if match_syntax(syn.ignore) == parse_state.accept
+                var new_cursor = cursor()
+                pop_stage()
+                cursor() = new_cursor
+            else
+                pop_stage()
+            end
+            on_ign = false
+        end
+    end
     # Match:  Terminal Symbols
     # Deduct: Unstarred Nonterminals
     # Accept: Matching Successfully
@@ -347,6 +362,9 @@ class parser_type
         switch it.type
             case syntax_type.token
                 parse_log("Match  " + it.data)
+                if peek().type != it.data
+                    ignore()
+                end
                 if peek().type == it.data
                     parse_log("Accept " + it.data)
                     push(get())
@@ -358,6 +376,9 @@ class parser_type
             end
             case syntax_type.term
                 parse_log("Match  " + it.data)
+                if peek().data != it.data
+                    ignore()
+                end
                 if peek().data == it.data
                     parse_log("Accept " + it.data)
                     push(get())
@@ -383,8 +404,8 @@ class parser_type
                     return result
                 end
             end
-            case syntax_type.peek
-                push_stage("peek")
+            case syntax_type.nlook
+                push_stage("nlook")
                 var result = match_syntax(it.data)
                 pop_stage()
                 if result == parse_state.accept

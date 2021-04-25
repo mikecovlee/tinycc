@@ -167,12 +167,12 @@ var cminus_syntax = {
 
 @begin
 var covscript_lexical = {
-    "endl" : regex.build("^(;|\\n+)$"),
+    "endl" : regex.build("^\\n+$"),
     "id" : regex.build("^[A-Za-z_]\\w*$"),
     "num" : regex.build("^[0-9]+(\\.[0-9]+)?$"),
     "str" : regex.build("^(\"|\"([^\"]|\\\\\")*\"?)$"),
     "char" : regex.build("^(\'|\'([^\']|\\\\(0|\\\\|\'|\"|\\w))\'?)$"),
-    "bsig" : regex.build("^(=|:|\\?|->|\\.\\.|\\.\\.\\.)$"),
+    "bsig" : regex.build("^(;|=|:|\\?|->|\\.\\.|\\.\\.\\.)$"),
     "msig" : regex.build("^(\\+|\\+=|-|-=|\\*|\\*=|/|/=|%|%=|\\^|\\^=|\\+\\+|--)$"),
     "lsig" : regex.build("^(>|<|&|(\\|)|&&|(\\|\\|)|!|==?|!=?|>=?|<=?)$"),
     "brac" : regex.build("^(\\(|\\)|\\[|\\]|\\{|\\}|,|\\.)$"),
@@ -185,23 +185,31 @@ var covscript_lexical = {
 var covscript_syntax = {
     # Beginning of Parsing
     "begin" : {
-        syntax.ref("stmts")
+        syntax.repeat(syntax.ref("statement"))
     },
-    "stmts" : {
-        syntax.repeat(syntax.ref("statement"), syntax.token("endl"))
+    # Ignore if not match initiatively
+    "ignore" : {
+        syntax.token("endl")
     },
+    "endline" : {syntax.cond_or(
+        {syntax.token("endl")},
+        {syntax.term(";")}
+    )},
     "statement" : {syntax.cond_or(
         {syntax.ref("if-stmt")},
-        {syntax.ref("expr")}
+        {syntax.ref("expr-stmt")}
     )},
     "if-stmt" : {
         syntax.term("if"), syntax.ref("expr"), syntax.token("endl"),
         syntax.ref("if-stmts"),
-        syntax.optional(syntax.term("else"), syntax.optional(syntax.term("if"), syntax.ref("expr")),
-            syntax.token("endl"), syntax.ref("if-stmts")), syntax.term("end")
+        syntax.repeat(syntax.term("else"), syntax.optional(syntax.term("if"), syntax.ref("expr")),
+            syntax.token("endl"), syntax.ref("if-stmts")), syntax.term("end"), syntax.token("endl")
     },
     "if-stmts" : {
-        syntax.repeat(syntax.ref("statement"), syntax.token("endl"), syntax.peek(syntax.cond_or({syntax.term("else")}, {syntax.term("end")})))
+        syntax.repeat(syntax.ref("statement"), syntax.nlook(syntax.cond_or({syntax.term("else")}, {syntax.term("end")})))
+    },
+    "expr-stmt" : {
+        syntax.ref("expr"), syntax.ref("endline")
     },
     "expr" : {syntax.cond_or(
         {syntax.ref("asi-expr")},
@@ -215,7 +223,16 @@ var covscript_syntax = {
         {syntax.token("id"), syntax.term("["), syntax.ref("expr"), syntax.term("]")}
     )},
     "simple-expr" : {
-        syntax.ref("add-expr"), syntax.repeat(syntax.ref("cmp-op"), syntax.ref("add-expr"))
+        syntax.ref("cmp-expr"), syntax.repeat(syntax.ref("logic-op"), syntax.ref("cmp-expr"))
+    },
+    "logic-op" : {syntax.cond_or(
+        {syntax.term("&&")},
+        {syntax.term("||")},
+        {syntax.term("and")},
+        {syntax.term("or")}
+    )},
+    "cmp-expr" : {
+        syntax.optional(syntax.term("!")), syntax.ref("add-expr"), syntax.repeat(syntax.ref("cmp-op"), syntax.ref("add-expr"))
     },
     "cmp-op" : {syntax.cond_or(
         {syntax.term(">")},
@@ -242,6 +259,7 @@ var covscript_syntax = {
     "factor" : {syntax.cond_or(
         {syntax.term("("), syntax.ref("expr"), syntax.term(")")},
         {syntax.ref("object"), syntax.optional(syntax.ref("factor_s"))},
+        {syntax.term("{"), syntax.optional(syntax.ref("args")), syntax.term("}")},
         {syntax.token("str")},
         {syntax.token("num")}
     )},
@@ -280,7 +298,7 @@ main.add_grammar("c-", cminus_grammar)
 main.add_grammar("covscript", covscript_grammar)
 
 main.stop_on_error = false
-main.enable_log = true
+#main.enable_log = true
 
 main.from_file(context.cmd_args.at(1))
 
