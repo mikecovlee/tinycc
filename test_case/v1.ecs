@@ -1,3 +1,9 @@
+# ECS Lang (Extended Covariant Script)
+import codec.json, network.tcp as tcp_socket
+
+var a = 10
+var (b, (c, d), e) = {1, {2, 3}, 4}
+
 if a > 0
     system.out.println("a")
 else

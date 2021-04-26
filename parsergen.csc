@@ -197,6 +197,8 @@ var covscript_syntax = {
     )},
     "statement" : {syntax.cond_or(
         {syntax.ref("if-stmt")},
+        {syntax.ref("import-stmt")},
+        {syntax.ref("var-stmt")},
         {syntax.ref("expr-stmt")}
     )},
     "if-stmt" : {
@@ -207,6 +209,27 @@ var covscript_syntax = {
     },
     "if-stmts" : {
         syntax.repeat(syntax.ref("statement"), syntax.nlook(syntax.cond_or({syntax.term("else")}, {syntax.term("end")})))
+    },
+    "import-stmt" : {
+        syntax.term("import"), syntax.ref("import-list"), syntax.ref("endline")
+    },
+    "import-list" : {
+        syntax.ref("visit-expr"), syntax.optional(syntax.term("as"), syntax.token("id")), syntax.optional(syntax.term(","), syntax.ref("import-list"))
+    },
+    "var-stmt" : {
+        syntax.cond_or({syntax.term("var")}, {syntax.term("constant")}),
+        syntax.cond_or({syntax.ref("var-bind"), syntax.term("="), syntax.ref("asi-expr")}, {syntax.ref("var-list")}), syntax.ref("endline")
+    },
+    "var-bind" : {
+        syntax.term("("), syntax.ref("var-bind-list"), syntax.repeat(syntax.term(","), syntax.ref("var-bind-list")), syntax.term(")")
+    },
+    "var-bind-list" : {syntax.cond_or(
+        {syntax.token("id")},
+        {syntax.token("...")},
+        {syntax.ref("var-bind")}
+    )},
+    "var-list" : {
+        syntax.token("id"), syntax.term("="), syntax.ref("asi-expr"), syntax.optional(syntax.term(","), syntax.ref("var-list"))
     },
     "expr-stmt" : {
         syntax.ref("expr"), syntax.ref("endline")
@@ -326,7 +349,7 @@ cminus_grammar.ext = ".*\\.c-"
 
 covscript_grammar.lex = covscript_lexical
 covscript_grammar.stx = covscript_syntax
-covscript_grammar.ext = ".*\\.(csp|csc)"
+covscript_grammar.ext = ".*\\.(csp|csc|ecs)"
 
 main.add_grammar("tiny", tiny_grammar)
 main.add_grammar("c-", cminus_grammar)
