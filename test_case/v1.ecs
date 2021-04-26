@@ -1,8 +1,7 @@
 # ECS Lang (Extended Covariant Script)
 import codec.json, network.tcp as tcp_socket
 
-var a = 10
-var (b, (c, d), e) = {1, {2, 3}, 4}
+var a = new tcp_socket.socket{"192.168.233.233", 3306}
 
 if a > 0
     system.out.println("a")
@@ -23,9 +22,14 @@ else
     *(a->hello)("World!").text
 end
 
-a = [b, =c](ttx : number, =xxx){
+test([b, =c](ttx : number, =xxx){
     if ttx > xxx
         system.exit(0)
     end
-}
-b = [](xxx)->xxx > 1 ? self(xxx - 2) + self(xxx - 1) : 1
+})
+
+b = [](...xxx)->xxx > 1 ? self(xxx - 2) + self(xxx - 1) : 1
+
+var (b, (c, d), e) = {1, {2, 3}, 4}
+(b, (c, d), e) = {1, {2, 3}, 4}
+

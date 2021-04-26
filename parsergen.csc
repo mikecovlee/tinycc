@@ -172,10 +172,10 @@ var covscript_lexical = {
     "num" : regex.build("^[0-9]+(\\.[0-9]+)?$"),
     "str" : regex.build("^(\"|\"([^\"]|\\\\\")*\"?)$"),
     "char" : regex.build("^(\'|\'([^\']|\\\\(0|\\\\|\'|\"|\\w))\'?)$"),
-    "bsig" : regex.build("^(;|:|\\?|\\.\\.|\\.\\.\\.)$"),
+    "bsig" : regex.build("^(;|:|\\?|\\.\\.?|\\.\\.\\.)$"),
     "msig" : regex.build("^(\\+(\\+|=)?|-(-|=|>)?|\\*=?|/=?|%=?|\\^=?)$"),
     "lsig" : regex.build("^(>|<|&|(\\|)|&&|(\\|\\|)|!|==?|!=?|>=?|<=?)$"),
-    "brac" : regex.build("^(\\(|\\)|\\[|\\]|\\{|\\}|,|\\.)$"),
+    "brac" : regex.build("^(\\(|\\)|\\[|\\]|\\{|\\}|,)$"),
     "ign" : regex.build("^([ \\f\\r\\t\\v]+|#.*\\n?|@.*\\n?)$"),
     "err" : regex.build("^(\"|\'|&|(\\|)|\\.\\.)$")
 }.to_hash_map()
@@ -238,6 +238,7 @@ var covscript_syntax = {
         syntax.ref("asi-expr"), syntax.optional(syntax.term(","), syntax.ref("expr"))
     },
     "asi-expr" : {syntax.cond_or(
+        {syntax.ref("var-bind"), syntax.term("="), syntax.ref("cond-expr")},
         {syntax.ref("unary-expr"), syntax.ref("asi-op"), syntax.ref("asi-expr")},
         {syntax.ref("lambda-expr")},
         {syntax.ref("cond-expr")}
@@ -257,15 +258,19 @@ var covscript_syntax = {
     "capture-list" : {
         syntax.optional(syntax.term("=")), syntax.token("id"), syntax.repeat(syntax.term(","), syntax.ref("capture-list"))
     },
-    "argument-list" : {
-        syntax.optional(syntax.term("=")), syntax.token("id"), syntax.optional(syntax.term(":"), syntax.ref("visit-expr")), syntax.repeat(syntax.term(","), syntax.ref("argument-list"))
-    },
+    "argument-list" : {syntax.cond_or(
+        {syntax.term("..."), syntax.token("id")},
+        {syntax.optional(syntax.term("=")), syntax.token("id"), syntax.optional(syntax.term(":"), syntax.ref("visit-expr")), syntax.repeat(syntax.term(","), syntax.ref("argument-list"))}
+    )},
     "lambda-body" : {syntax.cond_or(
         {syntax.term("{"), syntax.repeat(syntax.ref("statement")), syntax.term("}")},
         {syntax.term("->"), syntax.ref("cond-expr")}
     )},
     "cond-expr" : {
         syntax.ref("logic-or-expr"), syntax.optional(syntax.term("?"), syntax.ref("expr"), syntax.term(":"), syntax.ref("cond-expr"))
+    },
+    "pair-expr" : {
+        syntax.ref("logic-or-expr"), syntax.optional(syntax.term(":"), syntax.ref("logic-or-expr"))
     },
     "logic-or-expr" : {
         syntax.ref("logic-and-expr"), syntax.optional(syntax.cond_or({syntax.term("||")}, {syntax.term("or")}), syntax.ref("logic-or-expr"))
@@ -287,9 +292,14 @@ var covscript_syntax = {
     },
     "unary-expr" : {syntax.cond_or(
         {syntax.ref("unary-op"), syntax.ref("unary-expr")},
+        {
+            syntax.cond_or({syntax.term("new")}, {syntax.term("gcnew")}), syntax.ref("unary-expr"),
+            syntax.optional(syntax.term("{"), syntax.optional(syntax.ref("expr")), syntax.term("}"))
+        },
         {syntax.ref("prim-expr"), syntax.optional(syntax.ref("postfix-expr"))}
     )},
     "unary-op" : {syntax.cond_or(
+        {syntax.term("typeid")},
         {syntax.term("++")},
         {syntax.term("--")},
         {syntax.term("*")},
@@ -297,7 +307,7 @@ var covscript_syntax = {
         {syntax.term("!")}
     )},
     "postfix-expr" : {
-        syntax.cond_or({syntax.term("++")}, {syntax.term("--")}), syntax.optional(syntax.ref("postfix-expr"))
+        syntax.cond_or({syntax.term("++")}, {syntax.term("--")}, {syntax.term("...")}), syntax.optional(syntax.ref("postfix-expr"))
     },
     "prim-expr" : {syntax.cond_or(
         {syntax.ref("visit-expr")},
