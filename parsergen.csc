@@ -274,7 +274,7 @@ var covscript_syntax = {
         syntax.term("else"), syntax.optional(syntax.term("if"), syntax.ref("expr")), syntax.token("endl")
     },
     "if-stmts" : {
-        syntax.repeat(syntax.cond_or({syntax.ref("else-stmt")}, {syntax.ref("statement")}), syntax.repeat(syntax.token("endl")), syntax.nlook(syntax.cond_or({syntax.term("end")})))
+        syntax.repeat(syntax.cond_or({syntax.ref("else-stmt")}, {syntax.ref("statement")}), syntax.repeat(syntax.token("endl")), syntax.nlook(syntax.term("end")))
     },
     "switch-stmt" : {
         syntax.term("switch"), syntax.ref("expr"), syntax.token("endl"), syntax.ref("switch-stmts"), syntax.term("end"), syntax.token("endl")
@@ -474,7 +474,7 @@ main.add_grammar("c-", cminus_grammar)
 main.add_grammar("covscript", covscript_grammar)
 
 main.stop_on_error = false
-#main.enable_log = true
+# main.enable_log = true
 
 main.from_file(context.cmd_args.at(1))
 
