@@ -30,6 +30,14 @@ test([b, =c](ttx : number, =xxx){
 
 b = [](...xxx)->xxx > 1 ? self(xxx - 2) + self(xxx - 1) : 1
 
-var (b, (c, d), e) = {1, {2, 3}, 4}
-(b, (c, d), e) = {1, {2, 3}, 4}
+namespace xxx
+    using json.xxxx, network.xxxx
+    namespace xxx
+        var a = 10
+    end
+end
 
+block
+    var (b, (c, d), e) = {1, {2, 3}, 4}
+    (b, (c, d), e) = {1, {2, 3}, 4}
+end

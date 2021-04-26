@@ -199,6 +199,9 @@ var covscript_syntax = {
         {syntax.ref("if-stmt")},
         {syntax.ref("import-stmt")},
         {syntax.ref("var-stmt")},
+        {syntax.ref("block-stmt")},
+        {syntax.ref("namespace-stmt")},
+        {syntax.ref("using-stmt")},
         {syntax.ref("expr-stmt")}
     )},
     "if-stmt" : {
@@ -208,7 +211,7 @@ var covscript_syntax = {
             syntax.token("endl"), syntax.ref("if-stmts")), syntax.term("end"), syntax.token("endl")
     },
     "if-stmts" : {
-        syntax.repeat(syntax.ref("statement"), syntax.nlook(syntax.cond_or({syntax.term("else")}, {syntax.term("end")})))
+        syntax.repeat(syntax.ref("statement"), syntax.repeat(syntax.token("endl")), syntax.nlook(syntax.cond_or({syntax.term("else")}, {syntax.term("end")})))
     },
     "import-stmt" : {
         syntax.term("import"), syntax.ref("import-list"), syntax.ref("endline")
@@ -230,6 +233,18 @@ var covscript_syntax = {
     )},
     "var-list" : {
         syntax.token("id"), syntax.term("="), syntax.ref("asi-expr"), syntax.optional(syntax.term(","), syntax.ref("var-list"))
+    },
+    "block-stmt" : {
+        syntax.term("block"), syntax.token("endl"), syntax.repeat(syntax.ref("statement"), syntax.repeat(syntax.token("endl")), syntax.nlook(syntax.term("end"))), syntax.term("end"), syntax.token("endl")
+    },
+    "namespace-stmt" : {
+        syntax.term("namespace"), syntax.token("id"), syntax.token("endl"), syntax.repeat(syntax.ref("statement"), syntax.repeat(syntax.token("endl")), syntax.nlook(syntax.term("end"))), syntax.term("end"), syntax.token("endl")
+    },
+    "using-stmt" : {
+        syntax.term("using"), syntax.ref("using-list"), syntax.ref("endline")
+    },
+    "using-list" : {
+        syntax.ref("visit-expr"), syntax.optional(syntax.term(","), syntax.ref("using-list"))
     },
     "expr-stmt" : {
         syntax.ref("expr"), syntax.ref("endline")
@@ -263,7 +278,7 @@ var covscript_syntax = {
         {syntax.optional(syntax.term("=")), syntax.token("id"), syntax.optional(syntax.term(":"), syntax.ref("visit-expr")), syntax.repeat(syntax.term(","), syntax.ref("argument-list"))}
     )},
     "lambda-body" : {syntax.cond_or(
-        {syntax.term("{"), syntax.repeat(syntax.ref("statement")), syntax.term("}")},
+        {syntax.term("{"), syntax.repeat(syntax.ref("statement"), syntax.repeat(syntax.token("endl"))), syntax.term("}")},
         {syntax.term("->"), syntax.ref("cond-expr")}
     )},
     "cond-expr" : {
@@ -319,6 +334,8 @@ var covscript_syntax = {
     "object" : {syntax.cond_or(
         {syntax.ref("array"), syntax.optional(syntax.ref("index"))},
         {syntax.token("str"), syntax.optional(syntax.ref("index"))},
+        {syntax.term("local")},
+        {syntax.term("global")},
         {syntax.ref("element")},
         {syntax.token("char")}
     )},
