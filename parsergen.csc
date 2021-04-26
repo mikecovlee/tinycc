@@ -196,28 +196,28 @@ var covscript_syntax = {
         {syntax.term(";")}
     )},
     "statement" : {syntax.cond_or(
-        {syntax.ref("if-stmt")},
         {syntax.ref("import-stmt")},
         {syntax.ref("var-stmt")},
         {syntax.ref("block-stmt")},
         {syntax.ref("namespace-stmt")},
         {syntax.ref("using-stmt")},
+        {syntax.ref("if-stmt")},
+        {syntax.ref("switch-stmt")},
         {syntax.ref("expr-stmt")}
     )},
-    "if-stmt" : {
-        syntax.term("if"), syntax.ref("expr"), syntax.token("endl"),
-        syntax.ref("if-stmts"),
-        syntax.repeat(syntax.term("else"), syntax.optional(syntax.term("if"), syntax.ref("expr")),
-            syntax.token("endl"), syntax.ref("if-stmts")), syntax.term("end"), syntax.token("endl")
-    },
-    "if-stmts" : {
-        syntax.repeat(syntax.ref("statement"), syntax.repeat(syntax.token("endl")), syntax.nlook(syntax.cond_or({syntax.term("else")}, {syntax.term("end")})))
-    },
+    "declaration" : {syntax.cond_or(
+        {syntax.ref("namespace-stmt")},
+        {syntax.ref("var-stmt")},
+        {syntax.ref("using-stmt")}
+    )},
     "import-stmt" : {
         syntax.term("import"), syntax.ref("import-list"), syntax.ref("endline")
     },
+    "module-list" : {
+        syntax.token("id"), syntax.optional(syntax.term("."), syntax.cond_or({syntax.term("*")}, {syntax.ref("module-list")}))
+    },
     "import-list" : {
-        syntax.ref("visit-expr"), syntax.optional(syntax.term("as"), syntax.token("id")), syntax.optional(syntax.term(","), syntax.ref("import-list"))
+        syntax.ref("module-list"), syntax.optional(syntax.term("as"), syntax.token("id")), syntax.optional(syntax.term(","), syntax.ref("import-list"))
     },
     "var-stmt" : {
         syntax.cond_or({syntax.term("var")}, {syntax.term("constant")}),
@@ -238,13 +238,37 @@ var covscript_syntax = {
         syntax.term("block"), syntax.token("endl"), syntax.repeat(syntax.ref("statement"), syntax.repeat(syntax.token("endl")), syntax.nlook(syntax.term("end"))), syntax.term("end"), syntax.token("endl")
     },
     "namespace-stmt" : {
-        syntax.term("namespace"), syntax.token("id"), syntax.token("endl"), syntax.repeat(syntax.ref("statement"), syntax.repeat(syntax.token("endl")), syntax.nlook(syntax.term("end"))), syntax.term("end"), syntax.token("endl")
+        syntax.term("namespace"), syntax.token("id"), syntax.token("endl"), syntax.repeat(syntax.ref("declaration"), syntax.repeat(syntax.token("endl")), syntax.nlook(syntax.term("end"))), syntax.term("end"), syntax.token("endl")
     },
     "using-stmt" : {
         syntax.term("using"), syntax.ref("using-list"), syntax.ref("endline")
     },
     "using-list" : {
-        syntax.ref("visit-expr"), syntax.optional(syntax.term(","), syntax.ref("using-list"))
+        syntax.ref("module-list"), syntax.optional(syntax.term(","), syntax.ref("using-list"))
+    },
+    "if-stmt" : {
+        syntax.term("if"), syntax.ref("expr"), syntax.token("endl"),
+        syntax.optional(syntax.nlook(syntax.term("end")), syntax.ref("if-stmts")),
+        syntax.repeat(syntax.term("else"), syntax.optional(syntax.term("if"), syntax.ref("expr")),
+        syntax.token("endl"), syntax.optional(syntax.nlook(syntax.term("end")), syntax.ref("if-stmts"))), syntax.term("end"), syntax.token("endl")
+    },
+    "if-stmts" : {
+        syntax.repeat(syntax.ref("statement"), syntax.repeat(syntax.token("endl")), syntax.nlook(syntax.cond_or({syntax.term("else")}, {syntax.term("end")})))
+    },
+    "switch-stmt" : {
+        syntax.term("switch"), syntax.ref("expr"), syntax.token("endl"), syntax.ref("switch-stmts"), syntax.term("end"), syntax.token("endl")
+    },
+    "switch-stmts" : {
+        syntax.repeat(syntax.cond_or({syntax.ref("switch-case")}, {syntax.ref("switch-default")}), syntax.repeat(syntax.token("endl")), syntax.nlook(syntax.term("end")))
+    },
+    "switch-case" : {
+        syntax.term("case"), syntax.ref("expr"), syntax.token("endl"), syntax.optional(syntax.nlook(syntax.term("end")), syntax.ref("case-stmts")), syntax.term("end"), syntax.token("endl")
+    },
+    "switch-default" : {
+        syntax.term("default"), syntax.token("endl"), syntax.optional(syntax.nlook(syntax.term("end")), syntax.ref("case-stmts")), syntax.term("end"), syntax.token("endl")
+    },
+    "case-stmts" : {
+        syntax.repeat(syntax.ref("statement"), syntax.repeat(syntax.token("endl")), syntax.nlook(syntax.term("end")))
     },
     "expr-stmt" : {
         syntax.ref("expr"), syntax.ref("endline")

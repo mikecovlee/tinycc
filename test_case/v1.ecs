@@ -1,7 +1,10 @@
 # ECS Lang (Extended Covariant Script)
-import codec.json, network.tcp as tcp_socket
+import parsergen,  
+       codec.json,
+       covscript.*, 
+       network.tcp as tcp_socket
 
-var a = new tcp_socket.socket{"192.168.233.233", 3306}
+var a = new tcp_socket.get_type(){"192.168.233.233", 3306}
 
 if a > 0
     system.out.println("a")
@@ -31,9 +34,20 @@ test([b, =c](ttx : number, =xxx){
 b = [](...xxx)->xxx > 1 ? self(xxx - 2) + self(xxx - 1) : 1
 
 namespace xxx
-    using json.xxxx, network.xxxx
+    using json.*, tcp_socket
     namespace xxx
         var a = 10
+    end
+end
+
+switch xxxx.get()
+    case 1
+        sss()
+    end
+    case 2
+        xxxc()
+    end
+    default
     end
 end
 
