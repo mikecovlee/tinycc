@@ -191,10 +191,12 @@ var covscript_syntax = {
     "ignore" : {
         syntax.token("endl")
     },
+    # End of Line
     "endline" : {syntax.cond_or(
         {syntax.token("endl")},
         {syntax.term(";")}
     )},
+    # Bootstrap
     "statement" : {syntax.cond_or(
         {syntax.ref("import-stmt")},
         {syntax.ref("var-stmt")},
@@ -203,6 +205,11 @@ var covscript_syntax = {
         {syntax.ref("using-stmt")},
         {syntax.ref("if-stmt")},
         {syntax.ref("switch-stmt")},
+        {syntax.ref("while-stmt")},
+        {syntax.ref("loop-stmt")},
+        {syntax.ref("for-stmt")},
+        {syntax.ref("foreach-stmt")},
+        {syntax.ref("control-stmt")},
         {syntax.ref("expr-stmt")}
     )},
     "declaration" : {syntax.cond_or(
@@ -210,6 +217,7 @@ var covscript_syntax = {
         {syntax.ref("var-stmt")},
         {syntax.ref("using-stmt")}
     )},
+    # Statements
     "import-stmt" : {
         syntax.term("import"), syntax.ref("import-list"), syntax.ref("endline")
     },
@@ -219,9 +227,11 @@ var covscript_syntax = {
     "import-list" : {
         syntax.ref("module-list"), syntax.optional(syntax.term("as"), syntax.token("id")), syntax.optional(syntax.term(","), syntax.ref("import-list"))
     },
+    "var-def" : {
+        syntax.cond_or({syntax.ref("var-bind"), syntax.term("="), syntax.ref("asi-expr")}, {syntax.ref("var-list")})
+    },
     "var-stmt" : {
-        syntax.cond_or({syntax.term("var")}, {syntax.term("constant")}),
-        syntax.cond_or({syntax.ref("var-bind"), syntax.term("="), syntax.ref("asi-expr")}, {syntax.ref("var-list")}), syntax.ref("endline")
+        syntax.cond_or({syntax.term("var")}, {syntax.term("constant")}), syntax.ref("var-def"), syntax.ref("endline")
     },
     "var-bind" : {
         syntax.term("("), syntax.ref("var-bind-list"), syntax.repeat(syntax.term(","), syntax.ref("var-bind-list")), syntax.term(")")
@@ -270,9 +280,34 @@ var covscript_syntax = {
     "case-stmts" : {
         syntax.repeat(syntax.ref("statement"), syntax.repeat(syntax.token("endl")), syntax.nlook(syntax.term("end")))
     },
+    "while-stmt" : {
+        syntax.term("block"), syntax.ref("expr"), syntax.token("endl"), syntax.repeat(syntax.ref("statement"), syntax.repeat(syntax.token("endl")), syntax.nlook(syntax.term("end"))), syntax.term("end"), syntax.token("endl")
+    },
+    "loop-stmt" : {
+        syntax.term("loop"), syntax.token("endl"), syntax.repeat(syntax.ref("statement"), syntax.repeat(syntax.token("endl")), syntax.nlook(syntax.cond_or({syntax.term("until")}, {syntax.term("end")}))),
+        syntax.cond_or({syntax.term("until"), syntax.ref("expr")}, {syntax.term("end")}), syntax.token("endl")
+    },
+    "for-stmt" : {
+        syntax.term("for"), syntax.optional(syntax.ref("var-def")), syntax.term(";"), syntax.optional(syntax.ref("expr")), syntax.term(";"), syntax.optional(syntax.ref("expr")),
+        syntax.cond_or(
+            {syntax.term("do"), syntax.ref("expr"), syntax.ref("endline")},
+            {syntax.token("endl"), syntax.repeat(syntax.ref("statement"), syntax.repeat(syntax.token("endl")), syntax.nlook(syntax.term("end"))), syntax.term("end"), syntax.token("endl")}
+        )
+    },
+    "foreach-stmt" : {
+        syntax.term("foreach"), syntax.optional(syntax.nlook(syntax.term("in")), syntax.token("id")), syntax.term("in"), syntax.ref("expr"),
+        syntax.cond_or(
+            {syntax.term("do"), syntax.ref("expr"), syntax.ref("endline")},
+            {syntax.token("endl"), syntax.repeat(syntax.ref("statement"), syntax.repeat(syntax.token("endl")), syntax.nlook(syntax.term("end"))), syntax.term("end"), syntax.token("endl")}
+        )
+    },
+    "control-stmt" : {
+        syntax.cond_or({syntax.term("break")}, {syntax.term("continue")}), syntax.ref("endline")
+    },
     "expr-stmt" : {
         syntax.ref("expr"), syntax.ref("endline")
     },
+    # Expression
     "expr" : {
         syntax.ref("asi-expr"), syntax.optional(syntax.term(","), syntax.ref("expr"))
     },
