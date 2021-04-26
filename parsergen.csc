@@ -172,7 +172,7 @@ var covscript_lexical = {
     "num" : regex.build("^[0-9]+(\\.[0-9]+)?$"),
     "str" : regex.build("^(\"|\"([^\"]|\\\\\")*\"?)$"),
     "char" : regex.build("^(\'|\'([^\']|\\\\(0|\\\\|\'|\"|\\w))\'?)$"),
-    "bsig" : regex.build("^(;|=|:|\\?|->|\\.\\.|\\.\\.\\.)$"),
+    "bsig" : regex.build("^(;|=|:|\\?|->?|\\.\\.|\\.\\.\\.)$"),
     "msig" : regex.build("^(\\+|\\+=|-|-=|\\*|\\*=|/|/=|%|%=|\\^|\\^=|\\+\\+|--)$"),
     "lsig" : regex.build("^(>|<|&|(\\|)|&&|(\\|\\|)|!|==?|!=?|>=?|<=?)$"),
     "brac" : regex.build("^(\\(|\\)|\\[|\\]|\\{|\\}|,|\\.)$"),
@@ -246,7 +246,7 @@ var covscript_syntax = {
         syntax.ref("mul-expr"), syntax.optional(syntax.cond_or({syntax.term("+")}, {syntax.term("-")}), syntax.ref("add-expr"))
     },
     "mul-expr" : {
-        syntax.ref("unary-expr"), syntax.optional(syntax.cond_or({syntax.term("*")}, {syntax.term("/")}, {syntax.term("%")}, {syntax.term("^")}), syntax.ref("mul-expr"))
+        syntax.ref("unary-expr"), syntax.optional(syntax.nlook(syntax.token("endl")), syntax.cond_or({syntax.term("*")}, {syntax.term("/")}, {syntax.term("%")}, {syntax.term("^")}), syntax.ref("mul-expr"))
     },
     "unary-expr" : {syntax.cond_or(
         {syntax.ref("unary-op"), syntax.ref("unary-expr")},
@@ -263,13 +263,13 @@ var covscript_syntax = {
         syntax.cond_or({syntax.term("++")}, {syntax.term("--")}), syntax.optional(syntax.ref("postfix-expr"))
     },
     "prim-expr" : {syntax.cond_or(
-        {syntax.ref("constant")},
-        {syntax.ref("object"), syntax.optional(syntax.cond_or({syntax.ref("fcall")}, {syntax.ref("index")}))}
+        {syntax.ref("visit-expr")},
+        {syntax.ref("constant")}
     )},
-    "object" : {
-        syntax.ref("singleton"), syntax.optional(syntax.cond_or({syntax.term("->")}, {syntax.term(".")}), syntax.ref("prim-expr"))
-    }
-    "singleton" : {syntax.cond_or(
+    "visit-expr" : {
+        syntax.ref("object"), syntax.optional(syntax.cond_or({syntax.term("->")}, {syntax.term(".")}), syntax.ref("visit-expr"))
+    },
+    "object" : {syntax.cond_or(
         {syntax.ref("array"), syntax.optional(syntax.ref("index"))},
         {syntax.token("str"), syntax.optional(syntax.ref("index"))},
         {syntax.ref("element")},
@@ -277,7 +277,7 @@ var covscript_syntax = {
     )},
     "element" : {
         syntax.cond_or({syntax.token("id")}, {syntax.term("("), syntax.ref("expr"), syntax.term(")")}),
-        syntax.optional(syntax.cond_or({syntax.ref("fcall")}, {syntax.ref("index")}))
+        syntax.repeat(syntax.cond_or({syntax.ref("fcall")}, {syntax.ref("index")}))
     },
     "constant" : {syntax.cond_or(
         {syntax.token("num")},

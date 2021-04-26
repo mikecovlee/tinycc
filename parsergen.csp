@@ -434,7 +434,7 @@ class parser_type
             case syntax_type.opt
                 push_stage("optional")
                 var result = match_syntax(it.data)
-                if result > 0
+                if result == parse_state.accept
                     merge()
                 else
                     pop_stage()

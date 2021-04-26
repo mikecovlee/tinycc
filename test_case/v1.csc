@@ -14,4 +14,5 @@ else
         {syntax.token("num")}
     )}
     a.b(c[0], d.e())["Hello"].world()
+    *(a->hello)("World!").text
 end
