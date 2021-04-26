@@ -169,7 +169,7 @@ var cminus_syntax = {
 var covscript_lexical = {
     "endl" : regex.build("^\\n+$"),
     "id" : regex.build("^[A-Za-z_]\\w*$"),
-    "num" : regex.build("^[0-9]+(\\.[0-9]+)?$"),
+    "num" : regex.build("^[0-9]+\\.?([0-9]+)?$"),
     "str" : regex.build("^(\"|\"([^\"]|\\\\\")*\"?)$"),
     "char" : regex.build("^(\'|\'([^\']|\\\\(0|\\\\|\'|\"|\\w))\'?)$"),
     "bsig" : regex.build("^(;|:|\\?|\\.\\.?|\\.\\.\\.)$"),
@@ -198,6 +198,7 @@ var covscript_syntax = {
     )},
     # Bootstrap
     "statement" : {syntax.cond_or(
+        {syntax.ref("pacakge-stmt")},
         {syntax.ref("import-stmt")},
         {syntax.ref("var-stmt")},
         {syntax.ref("block-stmt")},
@@ -210,14 +211,24 @@ var covscript_syntax = {
         {syntax.ref("for-stmt")},
         {syntax.ref("foreach-stmt")},
         {syntax.ref("control-stmt")},
+        {syntax.ref("function-stmt")},
+        {syntax.ref("return-stmt")},
+        {syntax.ref("try-catch-stmt")},
+        {syntax.ref("throw-stmt")},
+        {syntax.ref("class-stmt")},
         {syntax.ref("expr-stmt")}
     )},
     "declaration" : {syntax.cond_or(
         {syntax.ref("namespace-stmt")},
         {syntax.ref("var-stmt")},
-        {syntax.ref("using-stmt")}
+        {syntax.ref("using-stmt")},
+        {syntax.ref("function-stmt")},
+        {syntax.ref("class-stmt")}
     )},
     # Statements
+    "pacakge-stmt" : {
+        syntax.term("package"), syntax.token("id"), syntax.ref("endline")
+    },
     "import-stmt" : {
         syntax.term("import"), syntax.ref("import-list"), syntax.ref("endline")
     },
@@ -231,7 +242,7 @@ var covscript_syntax = {
         syntax.cond_or({syntax.ref("var-bind"), syntax.term("="), syntax.ref("asi-expr")}, {syntax.ref("var-list")})
     },
     "var-stmt" : {
-        syntax.cond_or({syntax.term("var")}, {syntax.term("constant")}), syntax.ref("var-def"), syntax.ref("endline")
+        syntax.cond_or({syntax.term("var")}, {syntax.term("link")}, {syntax.term("constant")}), syntax.ref("var-def"), syntax.ref("endline")
     },
     "var-bind" : {
         syntax.term("("), syntax.ref("var-bind-list"), syntax.repeat(syntax.term(","), syntax.ref("var-bind-list")), syntax.term(")")
@@ -257,13 +268,13 @@ var covscript_syntax = {
         syntax.ref("module-list"), syntax.optional(syntax.term(","), syntax.ref("using-list"))
     },
     "if-stmt" : {
-        syntax.term("if"), syntax.ref("expr"), syntax.token("endl"),
-        syntax.optional(syntax.nlook(syntax.term("end")), syntax.ref("if-stmts")),
-        syntax.repeat(syntax.term("else"), syntax.optional(syntax.term("if"), syntax.ref("expr")),
-        syntax.token("endl"), syntax.optional(syntax.nlook(syntax.term("end")), syntax.ref("if-stmts"))), syntax.term("end"), syntax.token("endl")
+        syntax.term("if"), syntax.ref("expr"), syntax.token("endl"), syntax.ref("if-stmts"), syntax.term("end"), syntax.token("endl")
+    },
+    "else-stmt" : {
+        syntax.term("else"), syntax.optional(syntax.term("if"), syntax.ref("expr")), syntax.token("endl")
     },
     "if-stmts" : {
-        syntax.repeat(syntax.ref("statement"), syntax.repeat(syntax.token("endl")), syntax.nlook(syntax.cond_or({syntax.term("else")}, {syntax.term("end")})))
+        syntax.repeat(syntax.cond_or({syntax.ref("else-stmt")}, {syntax.ref("statement")}), syntax.repeat(syntax.token("endl")), syntax.nlook(syntax.cond_or({syntax.term("end")})))
     },
     "switch-stmt" : {
         syntax.term("switch"), syntax.ref("expr"), syntax.token("endl"), syntax.ref("switch-stmts"), syntax.term("end"), syntax.token("endl")
@@ -281,14 +292,14 @@ var covscript_syntax = {
         syntax.repeat(syntax.ref("statement"), syntax.repeat(syntax.token("endl")), syntax.nlook(syntax.term("end")))
     },
     "while-stmt" : {
-        syntax.term("block"), syntax.ref("expr"), syntax.token("endl"), syntax.repeat(syntax.ref("statement"), syntax.repeat(syntax.token("endl")), syntax.nlook(syntax.term("end"))), syntax.term("end"), syntax.token("endl")
+        syntax.term("while"), syntax.ref("expr"), syntax.token("endl"), syntax.repeat(syntax.ref("statement"), syntax.repeat(syntax.token("endl")), syntax.nlook(syntax.term("end"))), syntax.term("end"), syntax.token("endl")
     },
     "loop-stmt" : {
         syntax.term("loop"), syntax.token("endl"), syntax.repeat(syntax.ref("statement"), syntax.repeat(syntax.token("endl")), syntax.nlook(syntax.cond_or({syntax.term("until")}, {syntax.term("end")}))),
         syntax.cond_or({syntax.term("until"), syntax.ref("expr")}, {syntax.term("end")}), syntax.token("endl")
     },
     "for-stmt" : {
-        syntax.term("for"), syntax.optional(syntax.ref("var-def")), syntax.term(";"), syntax.optional(syntax.ref("expr")), syntax.term(";"), syntax.optional(syntax.ref("expr")),
+        syntax.term("for"), syntax.optional(syntax.ref("var-def")), syntax.cond_or({syntax.term(";")}, {syntax.term(",")}), syntax.optional(syntax.ref("asi-expr")), syntax.cond_or({syntax.term(";")}, {syntax.term(",")}), syntax.optional(syntax.ref("asi-expr")),
         syntax.cond_or(
             {syntax.term("do"), syntax.ref("expr"), syntax.ref("endline")},
             {syntax.token("endl"), syntax.repeat(syntax.ref("statement"), syntax.repeat(syntax.token("endl")), syntax.nlook(syntax.term("end"))), syntax.term("end"), syntax.token("endl")}
@@ -300,6 +311,29 @@ var covscript_syntax = {
             {syntax.term("do"), syntax.ref("expr"), syntax.ref("endline")},
             {syntax.token("endl"), syntax.repeat(syntax.ref("statement"), syntax.repeat(syntax.token("endl")), syntax.nlook(syntax.term("end"))), syntax.term("end"), syntax.token("endl")}
         )
+    },
+    "function-stmt" : {
+        syntax.term("function"), syntax.token("id"), syntax.term("("), syntax.optional(syntax.ref("argument-list")), syntax.term(")"), syntax.optional(syntax.term("override")), syntax.token("endl"),
+        syntax.repeat(syntax.ref("statement"), syntax.repeat(syntax.token("endl")), syntax.nlook(syntax.term("end"))), syntax.term("end"), syntax.token("endl")
+    },
+    "return-stmt" : {
+        syntax.term("return"), syntax.optional(syntax.ref("expr")), syntax.ref("endline")
+    },
+    "try-catch-stmt" : {
+        syntax.term("try"), syntax.token("endl"),
+        syntax.optional(syntax.nlook(syntax.term("end")), syntax.ref("try-catch-stmts")),
+        syntax.repeat(syntax.term("catch"), syntax.token("id"), syntax.optional(syntax.term(":"), syntax.ref("visit-expr")),
+        syntax.token("endl"), syntax.optional(syntax.nlook(syntax.term("end")), syntax.ref("try-catch-stmts"))), syntax.term("end"), syntax.token("endl")
+    },
+    "try-catch-stmts" : {
+        syntax.repeat(syntax.ref("statement"), syntax.repeat(syntax.token("endl")), syntax.nlook(syntax.cond_or({syntax.term("catch")}, {syntax.term("end")})))
+    },
+    "throw-stmt" : {
+        syntax.term("throw"), syntax.optional(syntax.ref("expr")), syntax.ref("endline")
+    },
+    "class-stmt" : {
+        syntax.cond_or({syntax.term("class")}, {syntax.term("struct")}), syntax.token("id"), syntax.optional(syntax.term("extends"), syntax.ref("visit-expr")), syntax.token("endl"),
+        syntax.repeat(syntax.ref("declaration"), syntax.repeat(syntax.token("endl")), syntax.nlook(syntax.term("end"))), syntax.term("end"), syntax.token("endl")
     },
     "control-stmt" : {
         syntax.cond_or({syntax.term("break")}, {syntax.term("continue")}), syntax.ref("endline")
@@ -327,7 +361,7 @@ var covscript_syntax = {
         {syntax.term("^=")}
     )},
     "lambda-expr" : {
-        syntax.term("["), syntax.optional(syntax.ref("capture-list")), syntax.term("]"), syntax.term("("), syntax.ref("argument-list"), syntax.term(")"), syntax.ref("lambda-body")
+        syntax.term("["), syntax.optional(syntax.ref("capture-list")), syntax.term("]"), syntax.term("("), syntax.optional(syntax.ref("argument-list")), syntax.term(")"), syntax.ref("lambda-body")
     },
     "capture-list" : {
         syntax.optional(syntax.term("=")), syntax.token("id"), syntax.repeat(syntax.term(","), syntax.ref("capture-list"))
@@ -340,12 +374,10 @@ var covscript_syntax = {
         {syntax.term("{"), syntax.repeat(syntax.ref("statement"), syntax.repeat(syntax.token("endl"))), syntax.term("}")},
         {syntax.term("->"), syntax.ref("cond-expr")}
     )},
-    "cond-expr" : {
-        syntax.ref("logic-or-expr"), syntax.optional(syntax.term("?"), syntax.ref("expr"), syntax.term(":"), syntax.ref("cond-expr"))
-    },
-    "pair-expr" : {
-        syntax.ref("logic-or-expr"), syntax.optional(syntax.term(":"), syntax.ref("logic-or-expr"))
-    },
+    "cond-expr" : {syntax.ref("logic-or-expr"), syntax.optional(syntax.cond_or(
+        {syntax.term("?"), syntax.ref("logic-or-expr"), syntax.term(":"), syntax.ref("cond-expr")},
+        {syntax.term(":"), syntax.ref("logic-or-expr")}
+    ))},
     "logic-or-expr" : {
         syntax.ref("logic-and-expr"), syntax.optional(syntax.cond_or({syntax.term("||")}, {syntax.term("or")}), syntax.ref("logic-or-expr"))
     },
@@ -370,7 +402,7 @@ var covscript_syntax = {
             syntax.cond_or({syntax.term("new")}, {syntax.term("gcnew")}), syntax.ref("unary-expr"),
             syntax.optional(syntax.term("{"), syntax.optional(syntax.ref("expr")), syntax.term("}"))
         },
-        {syntax.ref("prim-expr"), syntax.optional(syntax.ref("postfix-expr"))}
+        {syntax.ref("prim-expr"), syntax.nlook(syntax.token("endl")), syntax.optional(syntax.ref("postfix-expr"))}
     )},
     "unary-op" : {syntax.cond_or(
         {syntax.term("typeid")},
@@ -442,7 +474,7 @@ main.add_grammar("c-", cminus_grammar)
 main.add_grammar("covscript", covscript_grammar)
 
 main.stop_on_error = false
-# main.enable_log = true
+#main.enable_log = true
 
 main.from_file(context.cmd_args.at(1))
 

@@ -26,10 +26,24 @@ else
 end
 
 test([b, =c](ttx : number, =xxx){
-    if ttx > xxx
-        system.exit(0)
+    if(xj)
+        if(z2>0)
+            --z2
+        end
+    else
+        if(z1>0)
+            --z1
+        end
     end
 })
+
+struct xxxx
+    var a = 10
+end
+
+foreach it in lexical_set do rule = it
+
+a = "Hello" : "world"
 
 b = [](...xxx)->xxx > 1 ? self(xxx - 2) + self(xxx - 1) : 1
 
@@ -44,7 +58,7 @@ switch xxxx.get()
     case 1
         sss()
     end
-    case 2
+    case 'z'
         xxxc()
     end
     default
