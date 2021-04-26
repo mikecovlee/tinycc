@@ -16,3 +16,10 @@ else
     a.b(c[0], d.e())["Hello"].world()
     *(a->hello)("World!").text
 end
+
+a = [b, =c](ttx : number, =xxx){
+    if ttx > xxx
+        system.exit(0)
+    end
+}
+b = [](xxx)->xxx > 1 ? self(xxx - 2) + self(xxx - 1) : 1

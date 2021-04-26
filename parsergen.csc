@@ -172,8 +172,8 @@ var covscript_lexical = {
     "num" : regex.build("^[0-9]+(\\.[0-9]+)?$"),
     "str" : regex.build("^(\"|\"([^\"]|\\\\\")*\"?)$"),
     "char" : regex.build("^(\'|\'([^\']|\\\\(0|\\\\|\'|\"|\\w))\'?)$"),
-    "bsig" : regex.build("^(;|=|:|\\?|->?|\\.\\.|\\.\\.\\.)$"),
-    "msig" : regex.build("^(\\+|\\+=|-|-=|\\*|\\*=|/|/=|%|%=|\\^|\\^=|\\+\\+|--)$"),
+    "bsig" : regex.build("^(;|:|\\?|\\.\\.|\\.\\.\\.)$"),
+    "msig" : regex.build("^(\\+(\\+|=)?|-(-|=|>)?|\\*=?|/=?|%=?|\\^=?)$"),
     "lsig" : regex.build("^(>|<|&|(\\|)|&&|(\\|\\|)|!|==?|!=?|>=?|<=?)$"),
     "brac" : regex.build("^(\\(|\\)|\\[|\\]|\\{|\\}|,|\\.)$"),
     "ign" : regex.build("^([ \\f\\r\\t\\v]+|#.*\\n?|@.*\\n?)$"),
@@ -185,7 +185,7 @@ var covscript_lexical = {
 var covscript_syntax = {
     # Beginning of Parsing
     "begin" : {
-        syntax.repeat(syntax.ref("statement"))
+        syntax.repeat(syntax.ref("statement"), syntax.repeat(syntax.token("endl")))
     },
     # Ignore if not match initiatively
     "ignore" : {
@@ -215,8 +215,9 @@ var covscript_syntax = {
         syntax.ref("asi-expr"), syntax.optional(syntax.term(","), syntax.ref("expr"))
     },
     "asi-expr" : {syntax.cond_or(
-        {syntax.ref("cond-expr")},
-        {syntax.ref("unary-expr"), syntax.ref("asi-op"), syntax.ref("asi-expr")}
+        {syntax.ref("unary-expr"), syntax.ref("asi-op"), syntax.ref("asi-expr")},
+        {syntax.ref("lambda-expr")},
+        {syntax.ref("cond-expr")}
     )},
     "asi-op" : {syntax.cond_or(
         {syntax.term("=")},
@@ -226,6 +227,19 @@ var covscript_syntax = {
         {syntax.term("/=")},
         {syntax.term("%=")},
         {syntax.term("^=")}
+    )},
+    "lambda-expr" : {
+        syntax.term("["), syntax.optional(syntax.ref("capture-list")), syntax.term("]"), syntax.term("("), syntax.ref("argument-list"), syntax.term(")"), syntax.ref("lambda-body")
+    },
+    "capture-list" : {
+        syntax.optional(syntax.term("=")), syntax.token("id"), syntax.repeat(syntax.term(","), syntax.ref("capture-list"))
+    },
+    "argument-list" : {
+        syntax.optional(syntax.term("=")), syntax.token("id"), syntax.optional(syntax.term(":"), syntax.ref("visit-expr")), syntax.repeat(syntax.term(","), syntax.ref("argument-list"))
+    },
+    "lambda-body" : {syntax.cond_or(
+        {syntax.term("{"), syntax.repeat(syntax.ref("statement")), syntax.term("}")},
+        {syntax.term("->"), syntax.ref("cond-expr")}
     )},
     "cond-expr" : {
         syntax.ref("logic-or-expr"), syntax.optional(syntax.term("?"), syntax.ref("expr"), syntax.term(":"), syntax.ref("cond-expr"))
@@ -319,7 +333,7 @@ main.add_grammar("c-", cminus_grammar)
 main.add_grammar("covscript", covscript_grammar)
 
 main.stop_on_error = false
-main.enable_log = true
+# main.enable_log = true
 
 main.from_file(context.cmd_args.at(1))
 
