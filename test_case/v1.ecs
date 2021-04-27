@@ -2,7 +2,7 @@
 import parsergen,  
        codec.json,
        covscript.*, 
-       network.tcp as tcp_socket
+       network.tcp.x as tcp_socket
 
 var a = new tcp_socket.get_type(){"192.168.233.233", 3306}
 
@@ -38,6 +38,11 @@ test([b, =c](ttx : number, =xxx){
         end
     end
 })
+
+function test(a : string, b : number, =c)
+{
+    return fuck_you()
+}
 
 struct xxxx
     var a = 10
