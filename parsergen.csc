@@ -1,4 +1,5 @@
 import parsergen, regex
+import ecs_parser
 
 constant syntax = parsergen.syntax
 
@@ -165,120 +166,8 @@ var cminus_syntax = {
 }.to_hash_map()
 @end
 
-@begin
-var covscript_lexical = {
-    "endl" : regex.build("^\\n+$"),
-    "id" : regex.build("^[A-Za-z_]\\w*$"),
-    "num" : regex.build("^[0-9]+(\\.[0-9]+)?$"),
-    "str" : regex.build("^(\"|\"([^\"]|\\\\\")*\"?)$"),
-    "char" : regex.build("^(\'|\'([^\']|\\\\(0|\\\\|\'|\"|\\w))\'?)$"),
-    "bsig" : regex.build("^(;|=|:|\\?|->|\\.\\.|\\.\\.\\.)$"),
-    "msig" : regex.build("^(\\+|\\+=|-|-=|\\*|\\*=|/|/=|%|%=|\\^|\\^=|\\+\\+|--)$"),
-    "lsig" : regex.build("^(>|<|&|(\\|)|&&|(\\|\\|)|!|==?|!=?|>=?|<=?)$"),
-    "brac" : regex.build("^(\\(|\\)|\\[|\\]|\\{|\\}|,|\\.)$"),
-    "ign" : regex.build("^([ \\f\\r\\t\\v]+|#.*\\n?|@.*\\n?)$"),
-    "err" : regex.build("^(\"|\'|&|(\\|)|\\.\\.)$")
-}.to_hash_map()
-@end
-
-@begin
-var covscript_syntax = {
-    # Beginning of Parsing
-    "begin" : {
-        syntax.repeat(syntax.ref("statement"))
-    },
-    # Ignore if not match initiatively
-    "ignore" : {
-        syntax.token("endl")
-    },
-    "endline" : {syntax.cond_or(
-        {syntax.token("endl")},
-        {syntax.term(";")}
-    )},
-    "statement" : {syntax.cond_or(
-        {syntax.ref("if-stmt")},
-        {syntax.ref("expr-stmt")}
-    )},
-    "if-stmt" : {
-        syntax.term("if"), syntax.ref("expr"), syntax.token("endl"),
-        syntax.ref("if-stmts"),
-        syntax.repeat(syntax.term("else"), syntax.optional(syntax.term("if"), syntax.ref("expr")),
-            syntax.token("endl"), syntax.ref("if-stmts")), syntax.term("end"), syntax.token("endl")
-    },
-    "if-stmts" : {
-        syntax.repeat(syntax.ref("statement"), syntax.nlook(syntax.cond_or({syntax.term("else")}, {syntax.term("end")})))
-    },
-    "expr-stmt" : {
-        syntax.ref("expr"), syntax.ref("endline")
-    },
-    "expr" : {syntax.cond_or(
-        {syntax.ref("asi-expr")},
-        {syntax.ref("simple-expr")}
-    )},
-    "asi-expr" : {
-        syntax.ref("lhs"), syntax.term("="), syntax.ref("expr")
-    },
-    "lhs" : {syntax.cond_or(
-        {syntax.token("id")},
-        {syntax.token("id"), syntax.term("["), syntax.ref("expr"), syntax.term("]")}
-    )},
-    "simple-expr" : {
-        syntax.ref("cmp-expr"), syntax.repeat(syntax.ref("logic-op"), syntax.ref("cmp-expr"))
-    },
-    "logic-op" : {syntax.cond_or(
-        {syntax.term("&&")},
-        {syntax.term("||")},
-        {syntax.term("and")},
-        {syntax.term("or")}
-    )},
-    "cmp-expr" : {
-        syntax.optional(syntax.term("!")), syntax.ref("add-expr"), syntax.repeat(syntax.ref("cmp-op"), syntax.ref("add-expr"))
-    },
-    "cmp-op" : {syntax.cond_or(
-        {syntax.term(">")},
-        {syntax.term("<")},
-        {syntax.term(">=")},
-        {syntax.term("<=")},
-        {syntax.term("==")},
-        {syntax.term("!=")}
-    )},
-    "add-expr" : {
-        syntax.ref("mul-expr"), syntax.repeat(syntax.ref("add-op"), syntax.ref("mul-expr"))
-    },
-    "add-op" : {syntax.cond_or(
-        {syntax.term("+")},
-        {syntax.term("-")}
-    )},
-    "mul-expr" : {
-        syntax.ref("factor"), syntax.repeat(syntax.ref("mul-op"), syntax.ref("term"))
-    },
-    "mul-op" : {syntax.cond_or(
-        {syntax.term("*")},
-        {syntax.term("/")}
-    )},
-    "factor" : {syntax.cond_or(
-        {syntax.term("("), syntax.ref("expr"), syntax.term(")")},
-        {syntax.ref("object"), syntax.optional(syntax.ref("factor_s"))},
-        {syntax.term("{"), syntax.optional(syntax.ref("args")), syntax.term("}")},
-        {syntax.token("str")},
-        {syntax.token("num")}
-    )},
-    "object" : {
-        syntax.token("id"), syntax.repeat(syntax.term("."), syntax.ref("object"))
-    },
-    "factor_s" : {syntax.cond_or(
-        {syntax.term("["), syntax.ref("expr"), syntax.term("]")},
-        {syntax.term("("), syntax.optional(syntax.ref("args")), syntax.term(")")}
-    )},
-    "args" : {
-        syntax.ref("expr"), syntax.repeat(syntax.term(","), syntax.ref("expr"))
-    }
-}.to_hash_map()
-@end
-
 var tiny_grammar = new parsergen.grammar
 var cminus_grammar = new parsergen.grammar
-var covscript_grammar = new parsergen.grammar
 var main = new parsergen.generator
 
 tiny_grammar.lex = tiny_lexical
@@ -289,18 +178,16 @@ cminus_grammar.lex = cminus_lexical
 cminus_grammar.stx = cminus_syntax
 cminus_grammar.ext = ".*\\.c-"
 
-covscript_grammar.lex = covscript_lexical
-covscript_grammar.stx = covscript_syntax
-covscript_grammar.ext = ".*\\.(csp|csc)"
-
 main.add_grammar("tiny", tiny_grammar)
 main.add_grammar("c-", cminus_grammar)
-main.add_grammar("covscript", covscript_grammar)
+main.add_grammar("ecs-lang", ecs_parser.grammar)
 
 main.stop_on_error = false
-#main.enable_log = true
+# main.enable_log = true
 
+var time_start = runtime.time()
 main.from_file(context.cmd_args.at(1))
+system.out.println("Compile Time: " + (runtime.time() - time_start)/1000 + "s")
 
 function compress_ast(n)
     foreach it in n.nodes

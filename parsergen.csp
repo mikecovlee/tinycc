@@ -249,8 +249,9 @@ class parser_type
             prev_cursor = stack.front.cursor
         end
         stack.push_front(new parse_stage)
-        stack.front.product.root = root
-        stack.front.cursor = prev_cursor
+        link top = stack.front
+        top.product.root = root
+        top.cursor = prev_cursor
     end
     function pop_stage()
         return stack.pop_front()
@@ -259,29 +260,27 @@ class parser_type
     function push(val)
         stack.front.product.nodes.push_back(val)
     end
+    function push_token()
+        link top = stack.front
+        top.product.nodes.push_back(lex[top.cursor++])
+    end
     # Token Streams
     function cursor()
         return stack.front.cursor
     end
     function eof()
-        return cursor() >= lex.size
+        return stack.front.cursor >= lex.size
     end
     function peek()
-        if eof()
-            throw runtime.exception("EOF")
-        end
-        return lex[cursor()]
+        return lex.at(stack.front.cursor)
     end
     function get()
-        if eof()
-            throw runtime.exception("EOF")
-        end
-        return lex[cursor()++]
+        return lex.at(stack.front.cursor++)
     end
     # Error & Logs
     function error(str, pos)
         var err = new parse_error
-        err.cursor = cursor()
+        err.cursor = stack.front.cursor
         err.text = str
         err.pos = pos
         if err.cursor > max_cursor
@@ -308,7 +307,7 @@ class parser_type
             @begin
             system.out.print(
                 "SS = " + stack.size + "\t" +
-                "CP = " + cursor() + "\t"
+                "CP = " + stack.front.cursor + "\t"
             )
             @end
             foreach i in range(log_indent) do system.out.print("  ")
@@ -317,16 +316,17 @@ class parser_type
     end
     # Parsing Methods
     function accept()
-        var new_cursor = cursor()
-        var dat = pop_stage().product
-        push(dat)
-        cursor() = new_cursor
+        link prev_stage = pop_stage()
+        if !prev_stage.product.nodes.empty()
+            push(prev_stage.product)
+        end
+        stack.front.cursor = prev_stage.cursor
     end
     function merge()
-        var new_cursor = cursor()
-        var dat = pop_stage().product
-        foreach it in dat.nodes do push(it)
-        cursor() = new_cursor
+        link prev_stage = pop_stage()
+        link top = stack.front
+        foreach it in prev_stage.product.nodes do top.product.nodes.push_back(move(it))
+        stack.front.cursor = prev_stage.cursor
     end
     function match_syntax(seq)
         foreach it in seq
@@ -341,13 +341,16 @@ class parser_type
         if !on_ign && syn.exist("ignore")
             on_ign = true
             push_stage("ignore")
+            parse_log("Begin Ignore")
+            ++log_indent
             if match_syntax(syn.ignore) == parse_state.accept
-                var new_cursor = cursor()
-                pop_stage()
-                cursor() = new_cursor
+                link prev_stage = pop_stage()
+                stack.front.cursor = prev_stage.cursor
             else
                 pop_stage()
             end
+            --log_indent
+            parse_log("End Ignore")
             on_ign = false
         end
     end
@@ -356,18 +359,24 @@ class parser_type
     # Accept: Matching Successfully
     # Reject: Matching Failed, Rollback
     function match(it)
-        if eof()
-            return parse_state.eof
-        end
         switch it.type
             case syntax_type.token
                 parse_log("Match  " + it.data)
+                if eof()
+                    parse_log("End Of File")
+                    return parse_state.eof
+                end
                 if peek().type != it.data
                     ignore()
                 end
+                if eof()
+                    parse_log("End Of File")
+                    return parse_state.eof
+                end
                 if peek().type == it.data
                     parse_log("Accept " + it.data)
-                    push(get())
+                    push_token()
+                    return parse_state.accept
                 else
                     parse_log("Reject " + it.data)
                     error("Unexpected Token \'" + peek().data + "\'", peek().pos)
@@ -376,12 +385,21 @@ class parser_type
             end
             case syntax_type.term
                 parse_log("Match  " + it.data)
+                if eof()
+                    parse_log("End Of File")
+                    return parse_state.eof
+                end
                 if peek().data != it.data
                     ignore()
                 end
+                if eof()
+                    parse_log("End Of File")
+                    return parse_state.eof
+                end
                 if peek().data == it.data
                     parse_log("Accept " + it.data)
-                    push(get())
+                    push_token()
+                    return parse_state.accept
                 else
                     parse_log("Reject " + it.data)
                     error("Unexpected Token \'" + peek().data + "\'", peek().pos)
@@ -392,24 +410,39 @@ class parser_type
                 push_stage(it.data)
                 parse_log("Deduct " + it.data)
                 ++log_indent
-                var result = match_syntax(syn[it.data])
-                if result > 0
-                    --log_indent
-                    parse_log("Accept " + it.data)
-                    accept()
-                else
-                    --log_indent
+                var result = match_syntax(syn.at(it.data))
+                --log_indent
+                if result == parse_state.reject
                     parse_log("Reject " + it.data)
                     pop_stage()
-                    return result
+                    return parse_state.reject
+                else
+                    parse_log("Accept " + it.data)
+                    accept()
+                    if result != parse_state.eof
+                        return parse_state.accept
+                    else
+                        return parse_state.eof
+                    end
                 end
             end
             case syntax_type.nlook
                 push_stage("nlook")
                 var result = match_syntax(it.data)
                 pop_stage()
-                if result == parse_state.accept
-                    return parse_state.stop
+                switch result
+                    case parse_state.accept
+                        return parse_state.stop
+                    end
+                    case parse_state.stop
+                        return parse_state.stop
+                    end
+                    case parse_state.reject
+                        return parse_state.accept
+                    end
+                    case parse_state.eof
+                        return parse_state.eof
+                    end
                 end
             end
             case syntax_type.repeat
@@ -422,11 +455,15 @@ class parser_type
                         end
                         case parse_state.stop
                             merge()
-                            break
+                            return parse_state.accept
                         end
-                        default
+                        case parse_state.reject
                             pop_stage()
-                            break
+                            return parse_state.accept
+                        end
+                        case parse_state.eof
+                            merge()
+                            return parse_state.eof
                         end
                     end
                 end
@@ -434,38 +471,50 @@ class parser_type
             case syntax_type.opt
                 push_stage("optional")
                 var result = match_syntax(it.data)
-                if result > 0
+                if result != parse_state.reject
                     merge()
                 else
                     pop_stage()
                 end
+                if result != parse_state.eof
+                    return parse_state.accept
+                else
+                    return parse_state.eof
+                end
             end
             case syntax_type.cond
-                var matched = false
                 foreach seq in it.data
                     push_stage("cond_or")
                     var result = match_syntax(seq)
-                    if result > 0
-                        matched = true
-                        merge()
-                        break
-                    else
-                        pop_stage()
+                    switch result
+                        case parse_state.accept
+                            merge()
+                            return parse_state.accept
+                        end
+                        case parse_state.stop
+                            merge()
+                            return parse_state.accept
+                        end
+                        case parse_state.reject
+                            pop_stage()
+                        end
+                        case parse_state.eof
+                            merge()
+                            return parse_state.eof
+                        end
                     end
                 end
-                if !matched
-                    error("No matching syntax", peek().pos)
-                    return parse_state.reject
-                end
+                error("No matching syntax", peek().pos)
+                return parse_state.reject
             end
         end
-        return parse_state.accept
+        return parse_state.reject
     end
     function run(grammar, lex_output)
         syn = grammar
         lex = lex_output
         push_stage("begin")
-        return match_syntax(syn.begin) > 0 && eof() && stack.size == 1
+        return match_syntax(syn.begin) == parse_state.eof && stack.size == 1
     end
 end
 
