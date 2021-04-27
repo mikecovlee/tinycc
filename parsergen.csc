@@ -370,7 +370,7 @@ var covscript_syntax = {
     )},
     "basic-expr" : {syntax.cond_or(
         {syntax.ref("var-bind"), syntax.term("="), syntax.ref("cond-expr")},
-        {syntax.ref("cond-expr"), syntax.optional(syntax.ref("asi-op"), syntax.ref("basic-expr"))}
+        {syntax.ref("cond-expr"), syntax.optional(syntax.ref("asi-op"), syntax.ref("single-expr"))}
     )},
     "asi-op" : {syntax.cond_or(
         {syntax.term("=")},
