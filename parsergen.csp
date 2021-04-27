@@ -249,8 +249,9 @@ class parser_type
             prev_cursor = stack.front.cursor
         end
         stack.push_front(new parse_stage)
-        stack.front.product.root = root
-        stack.front.cursor = prev_cursor
+        link top = stack.front
+        top.product.root = root
+        top.cursor = prev_cursor
     end
     function pop_stage()
         return stack.pop_front()
@@ -259,29 +260,27 @@ class parser_type
     function push(val)
         stack.front.product.nodes.push_back(val)
     end
+    function push_token()
+        link top = stack.front
+        top.product.nodes.push_back(lex[top.cursor++])
+    end
     # Token Streams
     function cursor()
         return stack.front.cursor
     end
     function eof()
-        return cursor() >= lex.size
+        return stack.front.cursor >= lex.size
     end
     function peek()
-        if eof()
-            throw runtime.exception("End Of File")
-        end
-        return lex[cursor()]
+        return lex.at(stack.front.cursor)
     end
     function get()
-        if eof()
-            throw runtime.exception("End Of File")
-        end
-        return lex[cursor()++]
+        return lex.at(stack.front.cursor++)
     end
     # Error & Logs
     function error(str, pos)
         var err = new parse_error
-        err.cursor = cursor()
+        err.cursor = stack.front.cursor
         err.text = str
         err.pos = pos
         if err.cursor > max_cursor
@@ -308,7 +307,7 @@ class parser_type
             @begin
             system.out.print(
                 "SS = " + stack.size + "\t" +
-                "CP = " + cursor() + "\t"
+                "CP = " + stack.front.cursor + "\t"
             )
             @end
             foreach i in range(log_indent) do system.out.print("  ")
@@ -317,18 +316,17 @@ class parser_type
     end
     # Parsing Methods
     function accept()
-        var new_cursor = cursor()
-        var dat = pop_stage().product
-        if !dat.nodes.empty()
-            push(dat)
+        link prev_stage = pop_stage()
+        if !prev_stage.product.nodes.empty()
+            push(prev_stage.product)
         end
-        cursor() = new_cursor
+        stack.front.cursor = prev_stage.cursor
     end
     function merge()
-        var new_cursor = cursor()
-        var dat = pop_stage().product
-        foreach it in dat.nodes do push(it)
-        cursor() = new_cursor
+        link prev_stage = pop_stage()
+        link top = stack.front
+        foreach it in prev_stage.product.nodes do top.product.nodes.push_back(move(it))
+        stack.front.cursor = prev_stage.cursor
     end
     function match_syntax(seq)
         foreach it in seq
@@ -346,9 +344,8 @@ class parser_type
             parse_log("Begin Ignore")
             ++log_indent
             if match_syntax(syn.ignore) == parse_state.accept
-                var new_cursor = cursor()
-                pop_stage()
-                cursor() = new_cursor
+                link prev_stage = pop_stage()
+                stack.front.cursor = prev_stage.cursor
             else
                 pop_stage()
             end
@@ -378,7 +375,7 @@ class parser_type
                 end
                 if peek().type == it.data
                     parse_log("Accept " + it.data)
-                    push(get())
+                    push_token()
                     return parse_state.accept
                 else
                     parse_log("Reject " + it.data)
@@ -401,7 +398,7 @@ class parser_type
                 end
                 if peek().data == it.data
                     parse_log("Accept " + it.data)
-                    push(get())
+                    push_token()
                     return parse_state.accept
                 else
                     parse_log("Reject " + it.data)
@@ -413,7 +410,7 @@ class parser_type
                 push_stage(it.data)
                 parse_log("Deduct " + it.data)
                 ++log_indent
-                var result = match_syntax(syn[it.data])
+                var result = match_syntax(syn.at(it.data))
                 --log_indent
                 if result == parse_state.reject
                     parse_log("Reject " + it.data)

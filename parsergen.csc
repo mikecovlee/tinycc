@@ -497,7 +497,9 @@ main.add_grammar("covscript", covscript_grammar)
 main.stop_on_error = false
 # main.enable_log = true
 
+var time_start = runtime.time()
 main.from_file(context.cmd_args.at(1))
+system.out.println("Compile Time: " + (runtime.time() - time_start)/1000 + "s")
 
 function compress_ast(n)
     foreach it in n.nodes
